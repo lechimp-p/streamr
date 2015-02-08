@@ -4,6 +4,19 @@ class StreamPart(object):
     """
     Common base class for the parts of a stream processing pipeline.
     """
+    def __rshift__(self, other):
+        """
+        Compose two parts to get a new part.
+
+        __rshift__ is left biased, this a >> b >> c = (a >> b) >> c
+        """
+        return compose_stream_parts(self, other)
+
+    def __lshift__ (self, other):
+        """
+        Compose two part to get a new part.
+        """
+        return compose_stream_parts(other, self)
 
 class Producer(StreamPart):
     """
@@ -48,15 +61,69 @@ class StreamProcess(object):
 # Objects from the classes need to respect the follwing rules, where abbreaviations
 # for the names are used
 #
-# Pr >> Pr = error
-# Co >> Co = error
+# any >> Pr = error
+# Co >> any = error
 # Pi >> Pi = Pi
 # SP >> any = error
 # any >> SP = error
 # Pr >> Pi = Pr
-# Pi >> Pr = error
-# Co >> Pi = error
 # Pi >> Co = Co
 # Pr >> Co = SP
-# Co >> Pr = error
 
+def compose_stream_parts(left, right):
+    """ 
+    Compose two stream parts to get a new one.
+    
+    Throws TypeErrors when parts can't be combined.
+    """
+    t_left = type(left)
+    t_right = type(right)
+
+    if t_left == Pipe and t_right == Pipe:
+        return FusePipes(left, right)
+    elif t_left == Pipe and t_right == Consumer:
+        return PrependPipe(left, right)
+    elif t_left == Producer and t_right == Pipe:
+        return AppendPipe(left, right)
+    elif t_left == Producer and t_right == Consumer:
+        raise NotImplementedError("compose_stream_parts: implement fusion of "
+                                  "producer and consumer to stream process.")
+    else:
+        raise TypeError("Can't compose %s and %s" % (left, right))
+
+
+class ComposedStreamPart(object):
+    """
+    Mixin for all composed stream parts.
+    """
+    def __init__(self, left, right):
+        if left.type_out() != right.type_in():
+            raise TypeError("Can't compose %s and %s" % (left, right))
+
+        self.left = left
+        self.right = right
+    
+
+class FusePipe(Pipe, ComposedStreamPart):
+    """
+    A pipe build from two other pipes.
+    """
+    def type_in(self):
+        return self.left.type_in()
+
+    def type_out(self):
+        return self.right.type_out()
+
+class PrependPipe(Consumer, ComposedStreamPart):
+    """
+    A consumer build from another consumer with a prepended pipe.
+    """
+    def type_in(self):
+        return self.left.type_in()
+        
+class AppendPipe(Producer, ComposedStreamPart):
+    """
+    A producer build from another producer with an appended pipe.
+    """
+    def type_out(self):
+        return self.right.type_out()
