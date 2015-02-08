@@ -7,3 +7,8 @@ co = ListC(int)
 sp = pr >> co
 
 print(sp.run())
+
+pr = RepeatP("Hello")
+co = ListC(str, 10)
+sp = pr >> co
+print (sp.run())
