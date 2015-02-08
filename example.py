@@ -14,9 +14,8 @@ sp = pr2 >> co2
 print (sp.run())
 
 def AppendWord(word):
-    @statelessPipe(str, str)
-    def append(await):
-        inp = await()
+    @simpleTransformation(str, str)
+    def append(inp):
         return "%s %s" % (inp, word)
     return append
 

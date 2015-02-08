@@ -77,18 +77,11 @@ class Producer(StreamPart):
 
     def produce(self, state):
         """
-        Produce new data to be send downstream. The result must solely be a
+        Generate new data to be send downstream. The result must solely be a
         result from data in the state object. It must be threadsafe to call
-        produce. Produce must return a value with a type according to type_out.
+        produce. Produce must yield values with a type according to type_out.
         """
         raise NotImplementedError("Producer::produce: implement "
-                                  "me for class %s!" % type(self))
-
-    def can_produce(self, state):
-        """
-        Must tell whether the producer could produce a new value based on state.
-        """
-        raise NotImplementedError("Producer::can_produce: implement "
                                   "me for class %s!" % type(self))
 
     def __str__(self):
@@ -156,8 +149,8 @@ class Pipe(Producer, Consumer):
 
     def transform(self, await, state):
         """
-        Take data from upstream and produce data for downstream. Must adhere to
-        the types from type_in and type_out. 
+        Take data from upstream and generate data for downstream. Must adhere to
+        the types from type_in and type_out. Must be a generator.
         
         await is a function that could be called to get the next value from
         upstream.
@@ -165,9 +158,6 @@ class Pipe(Producer, Consumer):
         raise NotImplementedError("Pipe::transform: implement "
                                   "me for class %s!" % type(self))
         
-
-class ProducerExhaustedError(RuntimeError):
-    pass
 
 class StreamProcess(object):
     """
@@ -190,10 +180,10 @@ class StreamProcess(object):
         c_state = self.consumer.get_initial_state()
         graceful = True
 
+        producer_gen = self.producer.produce(p_state)
+
         def await():
-            if not self.producer.can_produce(p_state):
-                raise ProducerExhaustedError()
-            return self.producer.produce(p_state)
+            return producer_gen.__next__() 
 
         while True:
             cs = self.consumer.can_continue(c_state)
@@ -205,7 +195,7 @@ class StreamProcess(object):
                 try:
                     self.consumer.consume(await, c_state)
                     continue
-                except ProducerExhaustedError:
+                except StopIteration:
                     break
     
             if cs == Continue:
@@ -278,8 +268,9 @@ class FusePipe(ComposedStreamPart, Pipe):
 
     def transform(self, await, state):
         l, r = state
+        producer_gen = self.left.transform(self, await, state)
         def await_left():
-            return self.left.transform(await, l)
+            return producer_gen.__next__()
         return self.right.transform(await_left, r)
     
 class AppendPipe(ComposedStreamPart, Producer):
@@ -291,12 +282,10 @@ class AppendPipe(ComposedStreamPart, Producer):
 
     def produce(self, state):
         l, r = state
+        producer_gen = self.left.produce(l)
         def await():
-            return self.left.produce(l)
+            return producer_gen.__next__()
         return self.right.transform(await, r)
-    def can_produce(self, state):
-        l, r = state
-        return self.left.can_produce(l)
 
 class PrependPipe(ComposedStreamPart, Consumer):
     """
@@ -307,8 +296,9 @@ class PrependPipe(ComposedStreamPart, Consumer):
 
     def consume(self, await, state):
         l, r = state
+        producer_gen = self.left.transform(await,l)
         def await_left():
-            return self.left.transform(await, l)
+            return producer_gen.__next__()
         self.right.consume(await_left, r)
     def can_continue(self, state):
         l, r = state

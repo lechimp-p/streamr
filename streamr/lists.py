@@ -12,15 +12,13 @@ class ListP(Producer):
         return self.type
 
     def get_initial_state(self):
-        return [0]
+        return None
     def shutdown_state(self, state):
         pass
 
-    def produce(self, index):
-        index[0] += 1
-        return self.list[index[0]-1]
-    def can_produce(self, index):
-        return index[0] < self.length
+    def produce(self, state):
+        for i in self.list:
+            yield i
 
 class ListC(Consumer):
     def __init__(self, type, amount = None):
