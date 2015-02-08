@@ -12,3 +12,12 @@ pr = RepeatP("Hello")
 co = ListC(str, 10)
 sp = pr >> co
 print (sp.run())
+
+def AppendWord(word):
+    @statelessPipe(str, str)
+    def append(inp):
+        return "%s %s" % (inp, word)
+    return append
+
+sp = pr >> AppendWord("you,") >> AppendWord("World!") >> co
+print (sp.run())
