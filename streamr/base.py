@@ -115,11 +115,14 @@ class Consumer(StreamPart):
         raise NotImplementedError("Consumer::type_in: implement "
                                   "me for class %s!" % type(self))
 
-    def consume(self, value, state):
+    def consume(self, await, state):
         """
-        Consume a new piece of data from upstream. It must be threadsafe to call
-        produce. Consume must be able to process values with types according to  
-        type_in. Return values will be ignored. 
+        Consume data from upstream. It must be threadsafe to call consume. 
+        Consume must be able to process values with types according to type_in. 
+        Return values will be ignored. 
+
+        await is a function that could be called to get the next value from
+        upstream.
         """
         raise NotImplementedError("Consumer::consume: implement "
                                   "me for class %s!" % type(self))
@@ -151,14 +154,20 @@ class Pipe(Producer, Consumer):
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
-    def transform(self, value, state):
+    def transform(self, await, state):
         """
-        Transform an input value to an output value. Must adhere to the types
-        from type_in and type_out. 
+        Take data from upstream and produce data for downstream. Must adhere to
+        the types from type_in and type_out. 
+        
+        await is a function that could be called to get the next value from
+        upstream.
         """
         raise NotImplementedError("Pipe::transform: implement "
                                   "me for class %s!" % type(self))
         
+
+class ProducerExhaustedError(RuntimeError):
+    pass
 
 class StreamProcess(object):
     """
@@ -180,27 +189,32 @@ class StreamProcess(object):
         p_state = self.producer.get_initial_state()
         c_state = self.consumer.get_initial_state()
         graceful = True
+
+        def await():
+            if not self.producer.can_produce(p_state):
+                raise ProducerExhaustedError()
+            return self.producer.produce(p_state)
+
         while True:
-            ps = self.producer.can_produce(p_state)
             cs = self.consumer.can_continue(c_state)
-
-            if ps and cs != Stop:
-                self.consumer.consume(self.producer.produce(p_state), c_state)
-                continue
-
-            if cs == Stop or (not ps and cs == MayContinue):
+            
+            if cs == Stop:
                 break
 
-            graceful = False
-            break
+            if cs == MayContinue:
+                try:
+                    self.consumer.consume(await, c_state)
+                    continue
+                except ProducerExhaustedError:
+                    break
+    
+            if cs == Continue:
+                self.consumer.consume(await, c_state)
+
 
         self.producer.shutdown_state(p_state)
         self.consumer.shutdown_state(c_state)
            
-        if not graceful:
-            raise RuntimeError("Consumer needs more values "
-                               "than producer could produce.") 
-
         return self.consumer.result(c_state)
             
 
@@ -262,10 +276,11 @@ class FusePipe(ComposedStreamPart, Pipe):
     def type_out(self):
         return self.right.type_out()
 
-    def transform(self, value, state):
+    def transform(self, await, state):
         l, r = state
-        tmp = self.left.transform(value, l)
-        return self.right.transform(value, r)
+        def await_left():
+            return self.left.transform(await, l)
+        return self.right.transform(await_left, r)
     
 class AppendPipe(ComposedStreamPart, Producer):
     """
@@ -276,8 +291,9 @@ class AppendPipe(ComposedStreamPart, Producer):
 
     def produce(self, state):
         l, r = state
-        tmp = self.left.produce(l)
-        return self.right.transform(tmp, r)
+        def await():
+            return self.left.produce(l)
+        return self.right.transform(await, r)
     def can_produce(self, state):
         l, r = state
         return self.left.can_produce(l)
@@ -289,10 +305,11 @@ class PrependPipe(ComposedStreamPart, Consumer):
     def type_in(self):
         return self.left.type_in()
 
-    def consume(self, value, state):
+    def consume(self, await, state):
         l, r = state
-        tmp = self.left.transform(value, l)
-        self.right.consume(tmp, r)
+        def await_left():
+            return self.left.transform(await, l)
+        self.right.consume(await_left, r)
     def can_continue(self, state):
         l, r = state
         return self.right.can_continue(r) 

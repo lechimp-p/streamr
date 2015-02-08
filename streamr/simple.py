@@ -36,7 +36,8 @@ class StatelessPipe(Pipe):
     def shutdown_state(self, state):
         pass
 
-    def transform(self, value, state):
+    def transform(self, await, state):
+        value = await()
         return self.fun(value)
 
 def statelessPipe(type_in, type_out):

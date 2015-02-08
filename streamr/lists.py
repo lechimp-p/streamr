@@ -35,7 +35,8 @@ class ListC(Consumer):
     def shutdown_state(self, state):
         pass
 
-    def consume(self, value, list):
+    def consume(self, await, list):
+        value = await()
         list.append(value)
     def can_continue(self, list):
         if not self.amount is None:
