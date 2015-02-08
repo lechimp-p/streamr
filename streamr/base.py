@@ -45,6 +45,9 @@ class StreamPart(object):
         execution of the stream part.
 
         The state object could e.g. be used to hold references to resources.
+
+        If a multithreaded environment is used, this also must be a synchronization
+        point between different threads.
         """
         raise NotImplementedError("StreamPart::get_initial_state: implement me!")
 
@@ -52,6 +55,9 @@ class StreamPart(object):
         """
         Shut perform appropriate shutdown actions for the given state. Will be
         called after one execution of the pipeline with the resulting state.
+
+        If a multithreaded environment is used, this also must be a synchronization
+        point between different threads.
         """
         raise NotImplementedError("StreamPart::shutdown_state: implement me!")
     
@@ -67,8 +73,19 @@ class Producer(StreamPart):
         """
         raise NotImplementedError("Producer::type_out: implement me!")
 
+    def produce(self, state):
+        """
+        Produce new data to be send downstream. The result must solely be a
+        result from data in the state object. It must be threadsafe to call
+        produce. Produce must return a value with a type according to type_out.
+        """
+        raise NotImplementedError("Producer::produce: implement me!")
+
     def __str__(self):
         return "(() -> %s)" % self.type_out()
+
+class Continue:
+    pass
 
 class Consumer(StreamPart):
     """
@@ -81,6 +98,15 @@ class Consumer(StreamPart):
         """
         raise NotImplementedError("Consumer::type_in: implement me!")
 
+    def consume(self, value, state):
+        """
+        Consume a new piece of data from upstream. It must be threadsafe to call
+        produce. Consume must be able to process values with types according to  
+        type_in. Either returns Continue, which signals it needs more values or
+        a result.
+        """
+        raise NotImplementedError("Consumer::consume: implement me!")
+
     def __str__(self):
         return "(%s -> ())" % self.type_in()
 
@@ -91,6 +117,14 @@ class Pipe(Producer, Consumer):
     """ 
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
+
+    def transform(self, value, state):
+        """
+        Transform an input value to an output value. Must adhere to the types
+        from type_in and type_out. 
+        """
+        raise NotImplementedError("Pipe::transform: implement me!")
+        
 
 class StreamProcess(object):
     """
