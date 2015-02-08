@@ -19,6 +19,10 @@ Elements of a stream can be combined vertically by using the shift operators
 
 It should be possible to process the same pipeline multiple times and even in
 parallel, without the different process interfering with each other.
+
+Producers use generators to produce their values.
+
+Consumers and Producers can use an environment to e.g. hold resources. 
 """
 
 class StreamPart(object):
