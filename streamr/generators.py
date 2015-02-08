@@ -12,14 +12,26 @@ class GeneratorP(Producer):
     def type_out(self):
         return self.type
 
+    class NONE:
+        pass
+
+    @staticmethod
+    def iterate(gen):
+        try:
+            val = gen.__next__()
+        except StopIteration:
+            val = NONE
+        return (gen, val)
+
     def get_initial_state(self):
         self.generator, other = tee(self.generator)
-        return other
+        return self.iterate(other)
     def shutdown_state(self, state):
         pass
 
-    def produce(self, generator):
-        return generator.__next__()
-    
-        
-        
+    def produce(self, state):
+        generator, val = state
+        state = self.iterate(state)
+        return val
+    def can_produce(self, state):
+        return state[1] == NONE
