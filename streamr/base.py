@@ -16,6 +16,9 @@ data through a pipeline.
 
 Elements of a stream can be combined vertically by using the shift operators 
 >> and <<. 
+
+It should be possible to process the same pipeline multiple times and even in
+parallel, without the different process interfering with each other.
 """
 
 class StreamPart(object):
@@ -35,6 +38,23 @@ class StreamPart(object):
         Compose two part to get a new part.
         """
         return compose_stream_parts(other, self)
+
+    def get_initial_state(self):
+        """
+        Should return a state object that is used to pass state during one
+        execution of the stream part.
+
+        The state object could e.g. be used to hold references to resources.
+        """
+        raise NotImplementedError("StreamPart::get_initial_state: implement me!")
+
+    def shutdown_state(self, state):
+        """
+        Shut perform appropriate shutdown actions for the given state. Will be
+        called after one execution of the pipeline with the resulting state.
+        """
+        raise NotImplementedError("StreamPart::shutdown_state: implement me!")
+    
 
 class Producer(StreamPart):
     """
