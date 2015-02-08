@@ -49,7 +49,8 @@ class StreamPart(object):
         If a multithreaded environment is used, this also must be a synchronization
         point between different threads.
         """
-        raise NotImplementedError("StreamPart::get_initial_state: implement me!")
+        raise NotImplementedError("StreamPart::get_initial_state: implement "
+                                  "me for class %s!" % type(self))
 
     def shutdown_state(self, state):
         """
@@ -59,7 +60,8 @@ class StreamPart(object):
         If a multithreaded environment is used, this also must be a synchronization
         point between different threads.
         """
-        raise NotImplementedError("StreamPart::shutdown_state: implement me!")
+        raise NotImplementedError("StreamPart::shutdown_state: implement "
+                                  "me for class %s!" % type(self))
     
 class Producer(StreamPart):
     """
@@ -70,7 +72,8 @@ class Producer(StreamPart):
         """
         Get the type of output this producer produces.
         """
-        raise NotImplementedError("Producer::type_out: implement me!")
+        raise NotImplementedError("Producer::type_out: implement "
+                                  "me for class %s!" % type(self))
 
     def produce(self, state):
         """
@@ -78,13 +81,15 @@ class Producer(StreamPart):
         result from data in the state object. It must be threadsafe to call
         produce. Produce must return a value with a type according to type_out.
         """
-        raise NotImplementedError("Producer::produce: implement me!")
+        raise NotImplementedError("Producer::produce: implement "
+                                  "me for class %s!" % type(self))
 
     def can_produce(self, state):
         """
         Must tell whether the producer could produce a new value based on state.
         """
-        raise NotImplementedError("Producer::can_produce: implement me!")
+        raise NotImplementedError("Producer::can_produce: implement "
+                                  "me for class %s!" % type(self))
 
     def __str__(self):
         return "(() -> %s)" % self.type_out()
@@ -107,7 +112,8 @@ class Consumer(StreamPart):
         """
         Get the type, this consumer consumes.
         """
-        raise NotImplementedError("Consumer::type_in: implement me!")
+        raise NotImplementedError("Consumer::type_in: implement "
+                                  "me for class %s!" % type(self))
 
     def consume(self, value, state):
         """
@@ -115,7 +121,8 @@ class Consumer(StreamPart):
         produce. Consume must be able to process values with types according to  
         type_in. Return values will be ignored. 
         """
-        raise NotImplementedError("Consumer::consume: implement me!")
+        raise NotImplementedError("Consumer::consume: implement "
+                                  "me for class %s!" % type(self))
 
     def can_continue(self, state):
         """
@@ -123,13 +130,15 @@ class Consumer(StreamPart):
         MayContinue, which signals it could consume more input but as well could
         return a result or Stop which signals it can't consume more data.
         """
-        raise NotImplementedError("Consumer::can_continue: implement me!")
+        raise NotImplementedError("Consumer::can_continue: implement "
+                                  "me for class %s!" % type(self))
 
     def result(self, state):
         """
         Turn the state into a result.
         """
-        raise NotImplementedError("Consumer::result: implement me!")
+        raise NotImplementedError("Consumer::result: implement "
+                                  "me for class %s!" % type(self))
 
     def __str__(self):
         return "(%s -> ())" % self.type_in()
@@ -147,7 +156,8 @@ class Pipe(Producer, Consumer):
         Transform an input value to an output value. Must adhere to the types
         from type_in and type_out. 
         """
-        raise NotImplementedError("Pipe::transform: implement me!")
+        raise NotImplementedError("Pipe::transform: implement "
+                                  "me for class %s!" % type(self))
         
 
 class StreamProcess(object):
@@ -167,7 +177,32 @@ class StreamProcess(object):
         execution models for the same stream, it is very likely that this method
         will exchanged by various interpreter-like runners.
         """
-        pass
+        p_state = self.producer.get_initial_state()
+        c_state = self.consumer.get_initial_state()
+        graceful = True
+        while True:
+            ps = self.producer.can_produce(p_state)
+            cs = self.consumer.can_continue(c_state)
+
+            if ps and cs != Stop:
+                self.consumer.consume(self.producer.produce(p_state), c_state)
+                continue
+
+            if cs == Stop or (not ps and cs == MayContinue):
+                break
+
+            graceful = False
+            break
+
+        self.producer.shutdown_state(p_state)
+        self.consumer.shutdown_state(c_state)
+           
+        if not graceful:
+            raise RuntimeError("Consumer needs more values "
+                               "than producer could produce.") 
+
+        return self.consumer.result(c_state)
+            
 
 # Objects from the classes need to respect the follwing rules, where abbreaviations
 # for the names are used
@@ -187,18 +222,14 @@ def compose_stream_parts(left, right):
     
     Throws TypeErrors when parts can't be combined.
     """
-    t_left = type(left)
-    t_right = type(right)
-
-    if t_left == Pipe and t_right == Pipe:
+    if isinstance(left, Pipe) and isinstance(right, Pipe):
         return FusePipes(left, right)
-    elif t_left == Pipe and t_right == Consumer:
+    elif isinstance(left, Pipe) and isinstance(right, Consumer):
         return PrependPipe(left, right)
-    elif t_left == Producer and t_right == Pipe:
+    elif isinstance(left, Producer) and isinstance(right, Pipe):
         return AppendPipe(left, right)
-    elif t_left == Producer and t_right == Consumer:
-        raise NotImplementedError("compose_stream_parts: implement fusion of "
-                                  "producer and consumer to stream process.")
+    elif isinstance(left, Producer) and isinstance(right, Consumer):
+        return StreamProcess(left, right)
     else:
         raise TypeError("Can't compose %s and %s" % (left, right))
 
@@ -247,7 +278,7 @@ class AppendPipe(Producer, ComposedStreamPart):
         l, r = state
         tmp = self.left.produce(l)
         return self.right.transform(tmp, r)
-    def can_produce(self, state);
+    def can_produce(self, state):
         l, r = state
         return self.left.can_produce(l)
 
