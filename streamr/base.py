@@ -61,6 +61,8 @@ class StreamPart(object):
         """
         raise NotImplementedError("StreamPart::shutdown_state: implement me!")
     
+class Exhausted:
+    pass
 
 class Producer(StreamPart):
     """
@@ -77,7 +79,8 @@ class Producer(StreamPart):
         """
         Produce new data to be send downstream. The result must solely be a
         result from data in the state object. It must be threadsafe to call
-        produce. Produce must return a value with a type according to type_out.
+        produce. Produce must return a value with a type according to type_out
+        or Exhausted, which signals it can' produce more values.
         """
         raise NotImplementedError("Producer::produce: implement me!")
 
@@ -85,6 +88,12 @@ class Producer(StreamPart):
         return "(() -> %s)" % self.type_out()
 
 class Continue:
+    pass
+
+class MayContinue:
+    pass
+
+class Stop:
     pass
 
 class Consumer(StreamPart):
@@ -102,10 +111,17 @@ class Consumer(StreamPart):
         """
         Consume a new piece of data from upstream. It must be threadsafe to call
         produce. Consume must be able to process values with types according to  
-        type_in. Either returns Continue, which signals it needs more values or
-        a result.
+        type_in. Either returns Continue, which signals it needs more values, 
+        MayContinue, which signals it could consume more input but as well could
+        return a result or Stop which signals it can't consume more data.
         """
         raise NotImplementedError("Consumer::consume: implement me!")
+
+    def result(self, state):
+        """
+        Turn the state into a result.
+        """
+        raise NotImplementedError("Consumer::result: implement me!")
 
     def __str__(self):
         return "(%s -> ())" % self.type_in()
