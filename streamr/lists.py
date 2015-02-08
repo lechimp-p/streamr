@@ -1,6 +1,6 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-from .base import Producer, Consumer, MayContinue
+from .base import Producer, Consumer, MayContinue, Continue, Stop
 
 class ListP(Producer):
     def __init__(self, type, list):
@@ -23,8 +23,9 @@ class ListP(Producer):
         return index[0] < self.length
 
 class ListC(Consumer):
-    def __init__(self, type):
+    def __init__(self, type, amount = None):
         self.type = type
+        self.amount = amount
 
     def type_in(self):
         return self.type
@@ -37,6 +38,10 @@ class ListC(Consumer):
     def consume(self, value, list):
         list.append(value)
     def can_continue(self, list):
+        if not self.amount is None:
+            if len(list) == self.amount:
+                return Stop
+            return Continue
         return MayContinue;
     def result(self, list):
         return list
