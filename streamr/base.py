@@ -61,9 +61,6 @@ class StreamPart(object):
         """
         raise NotImplementedError("StreamPart::shutdown_state: implement me!")
     
-class Exhausted:
-    pass
-
 class Producer(StreamPart):
     """
     A producer is the source for a stream, that is, it produces new data for
@@ -79,10 +76,15 @@ class Producer(StreamPart):
         """
         Produce new data to be send downstream. The result must solely be a
         result from data in the state object. It must be threadsafe to call
-        produce. Produce must return a value with a type according to type_out
-        or Exhausted, which signals it can' produce more values.
+        produce. Produce must return a value with a type according to type_out.
         """
         raise NotImplementedError("Producer::produce: implement me!")
+
+    def can_produce(self, state):
+        """
+        Must tell whether the producer could produce a new value based on state.
+        """
+        raise NotImplementedError("Producer::can_produce: implement me!")
 
     def __str__(self):
         return "(() -> %s)" % self.type_out()
@@ -111,11 +113,17 @@ class Consumer(StreamPart):
         """
         Consume a new piece of data from upstream. It must be threadsafe to call
         produce. Consume must be able to process values with types according to  
-        type_in. Either returns Continue, which signals it needs more values, 
+        type_in. Return values will be ignored. 
+        """
+        raise NotImplementedError("Consumer::consume: implement me!")
+
+    def can_continue(self, state):
+        """
+        Either returns Continue, which signals consumer needs more data, 
         MayContinue, which signals it could consume more input but as well could
         return a result or Stop which signals it can't consume more data.
         """
-        raise NotImplementedError("Consumer::consume: implement me!")
+        raise NotImplementedError("Consumer::can_continue: implement me!")
 
     def result(self, state):
         """
@@ -154,6 +162,10 @@ class StreamProcess(object):
     def run(self):
         """
         Let this stream process run.
+
+        This is a fairly naive implementation. Since one could use differerent
+        execution models for the same stream, it is very likely that this method
+        will exchanged by various interpreter-like runners.
         """
         pass
 
@@ -201,7 +213,13 @@ class ComposedStreamPart(object):
 
         self.left = left
         self.right = right
-    
+ 
+    def get_initial_state(self):
+        return (self.left.get_initial_state(), self.right.get_initial_state())
+    def shutdown_state(self, state):
+        l, r = state
+        self.left.shutdown_state(l)
+        self.right.shutdown_state(r)   
 
 class FusePipe(Pipe, ComposedStreamPart):
     """
@@ -213,16 +231,38 @@ class FusePipe(Pipe, ComposedStreamPart):
     def type_out(self):
         return self.right.type_out()
 
-class PrependPipe(Consumer, ComposedStreamPart):
-    """
-    A consumer build from another consumer with a prepended pipe.
-    """
-    def type_in(self):
-        return self.left.type_in()
-        
+    def transform(self, value, state):
+        l, r = state
+        tmp = self.left.transform(value, l)
+        return self.right.transform(value, r)
+    
 class AppendPipe(Producer, ComposedStreamPart):
     """
     A producer build from another producer with an appended pipe.
     """
     def type_out(self):
         return self.right.type_out()
+
+    def produce(self, state):
+        l, r = state
+        tmp = self.left.produce(l)
+        return self.right.transform(tmp, r)
+    def can_produce(self, state);
+        l, r = state
+        return self.left.can_produce(l)
+
+class PrependPipe(Consumer, ComposedStreamPart):
+    """
+    A consumer build from another consumer with a prepended pipe.
+    """
+    def type_in(self):
+        return self.left.type_in()
+
+    def consume(self, value, state):
+        l, r = state
+        tmp = self.left.transform(value, l)
+        self.right.consume(tmp, r)
+    def can_continue(self, state):
+        l, r = state
+        return self.right.can_continue(r) 
+    
