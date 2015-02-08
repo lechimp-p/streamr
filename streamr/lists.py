@@ -11,9 +11,9 @@ class ListP(Producer):
     def type_out(self):
         return self.type
 
-    def get_initial_state(self):
+    def get_initial_env(self):
         return None
-    def shutdown_state(self, state):
+    def shutdown_env(self, env):
         pass
 
     def produce(self, state):
@@ -28,9 +28,9 @@ class ListC(Consumer):
     def type_in(self):
         return self.type
 
-    def get_initial_state(self):
+    def get_initial_env(self):
         return []
-    def shutdown_state(self, state):
+    def shutdown_env(self, env):
         pass
 
     def consume(self, await, list):

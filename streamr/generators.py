@@ -12,11 +12,11 @@ class GeneratorP(Producer):
     def type_out(self):
         return self.type
 
-    def get_initial_state(self):
+    def get_initial_env(self):
         return None
-    def shutdown_state(self, state):
+    def shutdown_env(self, env):
         pass
 
-    def produce(self, state):
+    def produce(self, env):
         self.generator, other = tee(self.generator)
         return other

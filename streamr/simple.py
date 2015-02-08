@@ -10,9 +10,9 @@ class RepeatP(Producer):
     def type_out(self):
         return self.type
 
-    def get_initial_state(self):
+    def get_initial_env(self):
         return None
-    def shutdown_state(self, state):
+    def shutdown_env(self, env):
         pass
 
     def produce(self, state):
@@ -30,12 +30,12 @@ class StatelessPipe(Pipe):
     def type_out(self):
         return self._type_out
 
-    def get_initial_state(self):
+    def get_initial_env(self):
         return None
-    def shutdown_state(self, state):
+    def shutdown_env(self, env):
         pass
 
-    def transform(self, await, state):
+    def transform(self, await, env):
         return self.fun(await)
 
 def statelessPipe(type_in, type_out):

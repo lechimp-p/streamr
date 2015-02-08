@@ -39,28 +39,28 @@ class StreamPart(object):
         """
         return compose_stream_parts(other, self)
 
-    def get_initial_state(self):
+    def get_initial_env(self):
         """
-        Should return a state object that is used to pass state during one
-        execution of the stream part.
+        Should return a environment object that is used during one execution of 
+        the stream part.
 
-        The state object could e.g. be used to hold references to resources.
+        The environment object could e.g. be used to hold references to resources.
 
         If a multithreaded environment is used, this also must be a synchronization
         point between different threads.
         """
-        raise NotImplementedError("StreamPart::get_initial_state: implement "
+        raise NotImplementedError("StreamPart::get_initial_env: implement "
                                   "me for class %s!" % type(self))
 
-    def shutdown_state(self, state):
+    def shutdown_env(self, env):
         """
-        Shut perform appropriate shutdown actions for the given state. Will be
-        called after one execution of the pipeline with the resulting state.
+        Shut perform appropriate shutdown actions for the given environment. Will be
+        called after one execution of the pipeline with the used environment.
 
         If a multithreaded environment is used, this also must be a synchronization
         point between different threads.
         """
-        raise NotImplementedError("StreamPart::shutdown_state: implement "
+        raise NotImplementedError("StreamPart::shutdown_env: implement "
                                   "me for class %s!" % type(self))
     
 class Producer(StreamPart):
@@ -75,10 +75,10 @@ class Producer(StreamPart):
         raise NotImplementedError("Producer::type_out: implement "
                                   "me for class %s!" % type(self))
 
-    def produce(self, state):
+    def produce(self, env):
         """
         Generate new data to be send downstream. The result must solely be a
-        result from data in the state object. It must be threadsafe to call
+        result from data in the env object. It must be threadsafe to call
         produce. Produce must yield values with a type according to type_out.
         """
         raise NotImplementedError("Producer::produce: implement "
@@ -108,7 +108,7 @@ class Consumer(StreamPart):
         raise NotImplementedError("Consumer::type_in: implement "
                                   "me for class %s!" % type(self))
 
-    def consume(self, await, state):
+    def consume(self, await, env):
         """
         Consume data from upstream. It must be threadsafe to call consume. 
         Consume must be able to process values with types according to type_in. 
@@ -120,7 +120,7 @@ class Consumer(StreamPart):
         raise NotImplementedError("Consumer::consume: implement "
                                   "me for class %s!" % type(self))
 
-    def can_continue(self, state):
+    def can_continue(self, env):
         """
         Either returns Continue, which signals consumer needs more data, 
         MayContinue, which signals it could consume more input but as well could
@@ -129,9 +129,9 @@ class Consumer(StreamPart):
         raise NotImplementedError("Consumer::can_continue: implement "
                                   "me for class %s!" % type(self))
 
-    def result(self, state):
+    def result(self, env):
         """
-        Turn the state into a result.
+        Turn the into a result.
         """
         raise NotImplementedError("Consumer::result: implement "
                                   "me for class %s!" % type(self))
@@ -147,7 +147,7 @@ class Pipe(Producer, Consumer):
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
-    def transform(self, await, state):
+    def transform(self, await, env):
         """
         Take data from upstream and generate data for downstream. Must adhere to
         the types from type_in and type_out. Must be a generator.
@@ -176,36 +176,35 @@ class StreamProcess(object):
         execution models for the same stream, it is very likely that this method
         will exchanged by various interpreter-like runners.
         """
-        p_state = self.producer.get_initial_state()
-        c_state = self.consumer.get_initial_state()
-        graceful = True
+        p_env = self.producer.get_initial_env()
+        c_env = self.consumer.get_initial_env()
 
-        producer_gen = self.producer.produce(p_state)
+        producer_gen = self.producer.produce(p_env)
 
         def await():
             return producer_gen.__next__() 
 
         while True:
-            cs = self.consumer.can_continue(c_state)
+            cs = self.consumer.can_continue(c_env)
             
             if cs == Stop:
                 break
 
             if cs == MayContinue:
                 try:
-                    self.consumer.consume(await, c_state)
+                    self.consumer.consume(await, c_env)
                     continue
                 except StopIteration:
                     break
     
             if cs == Continue:
-                self.consumer.consume(await, c_state)
+                self.consumer.consume(await, c_env)
 
 
-        self.producer.shutdown_state(p_state)
-        self.consumer.shutdown_state(c_state)
+        self.producer.shutdown_env(p_env)
+        self.consumer.shutdown_env(c_env)
            
-        return self.consumer.result(c_state)
+        return self.consumer.result(c_env)
             
 
 # Objects from the classes need to respect the follwing rules, where abbreaviations
@@ -249,12 +248,12 @@ class ComposedStreamPart(object):
         self.left = left
         self.right = right
  
-    def get_initial_state(self):
-        return (self.left.get_initial_state(), self.right.get_initial_state())
-    def shutdown_state(self, state):
-        l, r = state
-        self.left.shutdown_state(l)
-        self.right.shutdown_state(r)   
+    def get_initial_env(self):
+        return (self.left.get_initial_env(), self.right.get_initial_env())
+    def shutdown_env(self, env):
+        l, r = env 
+        self.left.shutdown_env(l)
+        self.right.shutdown_env(r)   
 
 class FusePipe(ComposedStreamPart, Pipe):
     """
@@ -266,9 +265,9 @@ class FusePipe(ComposedStreamPart, Pipe):
     def type_out(self):
         return self.right.type_out()
 
-    def transform(self, await, state):
-        l, r = state
-        producer_gen = self.left.transform(self, await, state)
+    def transform(self, await, env):
+        l, r = env 
+        producer_gen = self.left.transform(self, await, env)
         def await_left():
             return producer_gen.__next__()
         return self.right.transform(await_left, r)
@@ -280,8 +279,8 @@ class AppendPipe(ComposedStreamPart, Producer):
     def type_out(self):
         return self.right.type_out()
 
-    def produce(self, state):
-        l, r = state
+    def produce(self, env):
+        l, r = env 
         producer_gen = self.left.produce(l)
         def await():
             return producer_gen.__next__()
@@ -294,13 +293,13 @@ class PrependPipe(ComposedStreamPart, Consumer):
     def type_in(self):
         return self.left.type_in()
 
-    def consume(self, await, state):
-        l, r = state
+    def consume(self, await, env):
+        l, r = env
         producer_gen = self.left.transform(await,l)
         def await_left():
             return producer_gen.__next__()
         self.right.consume(await_left, r)
-    def can_continue(self, state):
-        l, r = state
+    def can_continue(self, env):
+        l, r = env 
         return self.right.can_continue(r) 
     
