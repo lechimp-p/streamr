@@ -15,7 +15,7 @@ class RepeatP(Producer):
     def shutdown_env(self, env):
         pass
 
-    def produce(self, state):
+    def produce(self, env):
         while True:
             yield self.value
 

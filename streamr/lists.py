@@ -16,7 +16,7 @@ class ListP(Producer):
     def shutdown_env(self, env):
         pass
 
-    def produce(self, state):
+    def produce(self, env):
         for i in self.list:
             yield i
 
