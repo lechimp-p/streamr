@@ -1,6 +1,6 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-from .base import Producer, Consumer, MayContinue, Continue, Stop
+from .base import Producer, Consumer
 
 class ListP(Producer):
     def __init__(self, type, list):
@@ -34,14 +34,12 @@ class ListC(Consumer):
         pass
 
     def consume(self, await, list):
-        value = await()
-        list.append(value)
-    def can_continue(self, list):
-        if not self.amount is None:
-            if len(list) == self.amount:
-                return Stop
-            return Continue
-        return MayContinue;
-    def result(self, list):
-        return list
-        
+        l = []
+        while True:
+            try:
+                value = await()
+            except StopIteration:
+                return l
+            l.append(value)
+            if not self.amount is None and len(l) == self.amount:
+                return l

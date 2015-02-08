@@ -91,15 +91,6 @@ class Producer(StreamPart):
     def __str__(self):
         return "(() -> %s)" % self.type_out()
 
-class Continue:
-    pass
-
-class MayContinue:
-    pass
-
-class Stop:
-    pass
-
 class Consumer(StreamPart):
     """
     A consumer is the sink for a stream, that is it consumes data from upstream
@@ -116,28 +107,12 @@ class Consumer(StreamPart):
         """
         Consume data from upstream. It must be threadsafe to call consume. 
         Consume must be able to process values with types according to type_in. 
-        Return values will be ignored. 
+        Could return a result. 
 
         await is a function that could be called to get the next value from
         upstream.
         """
         raise NotImplementedError("Consumer::consume: implement "
-                                  "me for class %s!" % type(self))
-
-    def can_continue(self, env):
-        """
-        Either returns Continue, which signals consumer needs more data, 
-        MayContinue, which signals it could consume more input but as well could
-        return a result or Stop which signals it can't consume more data.
-        """
-        raise NotImplementedError("Consumer::can_continue: implement "
-                                  "me for class %s!" % type(self))
-
-    def result(self, env):
-        """
-        Turn the into a result.
-        """
-        raise NotImplementedError("Consumer::result: implement "
                                   "me for class %s!" % type(self))
 
     def __str__(self):
@@ -188,27 +163,11 @@ class StreamProcess(object):
         def await():
             return producer_gen.__next__() 
 
-        while True:
-            cs = self.consumer.can_continue(c_env)
-            
-            if cs == Stop:
-                break
-
-            if cs == MayContinue:
-                try:
-                    self.consumer.consume(await, c_env)
-                    continue
-                except StopIteration:
-                    break
-    
-            if cs == Continue:
-                self.consumer.consume(await, c_env)
-
-
-        self.producer.shutdown_env(p_env)
-        self.consumer.shutdown_env(c_env)
-           
-        return self.consumer.result(c_env)
+        try:
+            return self.consumer.consume(await, c_env)
+        finally:
+            self.producer.shutdown_env(p_env)
+            self.consumer.shutdown_env(c_env)
             
 
 # Objects from the classes need to respect the follwing rules, where abbreaviations
@@ -302,8 +261,4 @@ class PrependPipe(ComposedStreamPart, Consumer):
         producer_gen = self.left.transform(await,l)
         def await_left():
             return producer_gen.__next__()
-        self.right.consume(await_left, r)
-    def can_continue(self, env):
-        l, r = env 
-        return self.right.can_continue(r) 
-    
+        return self.right.consume(await_left, r)
