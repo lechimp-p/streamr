@@ -19,7 +19,7 @@ class RepeatP(Producer):
         while True:
             yield self.value
 
-class StatelessPipe(Pipe):
+class NonEnvPipe(Pipe):
     def __init__(self, type_in, type_out, fun):
         self._type_in = type_in
         self._type_out = type_out
@@ -38,23 +38,32 @@ class StatelessPipe(Pipe):
     def transform(self, await, env):
         return self.fun(await)
 
-def statelessPipe(type_in, type_out):
-    return lambda fun: StatelessPipe(type_in, type_out, fun)
+def toPipe(type_in, type_out):
+    return lambda fun: NonEnvPipe(type_in, type_out, fun)
 
-def simpleTransformation(type_in, type_out):
+def transformation(type_in, type_out):
     def call_transformer(fun, await):
         while True:
             value = await()
             yield fun(value)
 
-    return lambda fun: StatelessPipe( 
+    return lambda fun: NonEnvPipe( 
                             type_in, type_out
                             , lambda await: call_transformer(fun, await)) 
 
 def chunks(type, amount):
-    @statelessPipe(type, tuple(amount * [type]))
+    @toPipe(type, tuple(amount * [type]))
     def chunks(await):
         while True:
             values = tuple([await() for i in range(0,amount)])
             yield values
     return chunks
+
+def echo(type, amount):
+    @toPipe(type, type)
+    def echo(await):
+        while True:
+            value = await()
+            for i in range(0, amount):
+                yield value
+    return echo

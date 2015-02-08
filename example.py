@@ -14,7 +14,7 @@ sp = pr2 >> co2
 print (sp.run())
 
 def AppendWord(word):
-    @simpleTransformation(str, str)
+    @transformation(str, str)
     def append(inp):
         return "%s %s" % (inp, word)
     return append
@@ -23,4 +23,7 @@ sp = pr2 >> AppendWord("you,") >> AppendWord("World!") >> co2
 print (sp.run())
 
 sp = pr1 >> chunks(int, 2) >> co1
+print (sp.run())
+
+sp = pr1 >> echo(int, 3) >> co1
 print (sp.run())
