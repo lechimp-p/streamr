@@ -1,5 +1,23 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
+"""
+# Rationales
+
+A streaming pipeline is build from three different kind of objects:
+
+* Producers send data downstream
+* Consumers receive data from upstream
+* Pipes receive data from upstream, transform it and send it downstream.
+
+Depending on their types the object have to be able to tell which type of data
+they receive and send. This is to make construction of valid streaming pipelines
+fault resistant, thus having to do less error handling when actually processing
+data through a pipeline.
+
+Elements of a stream can be combined vertically by using the shift operators 
+>> and <<. 
+"""
+
 class StreamPart(object):
     """
     Common base class for the parts of a stream processing pipeline.
