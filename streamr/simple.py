@@ -37,8 +37,14 @@ class StatelessPipe(Pipe):
         pass
 
     def transform(self, await, state):
-        value = await()
-        return self.fun(value)
+        return self.fun(await)
 
 def statelessPipe(type_in, type_out):
     return lambda fun: StatelessPipe(type_in, type_out, fun)
+
+def chunks(type, amount):
+    @statelessPipe(type, tuple(amount * [type]))
+    def chunks(await):
+        values = tuple([await() for i in range(0,amount)])
+        return values
+    return chunks

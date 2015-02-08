@@ -2,22 +2,26 @@
 
 from streamr import *
 
-pr = ListP(int, [1,2,3,4,5])
-co = ListC(int)
-sp = pr >> co
+pr1 = ListP(int, [1,2,3,4,5,6])
+co1 = ListC(int)
+sp = pr1 >> co1
 
 print(sp.run())
 
-pr = RepeatP("Hello")
-co = ListC(str, 10)
-sp = pr >> co
+pr2 = RepeatP("Hello")
+co2 = ListC(str, 10)
+sp = pr2 >> co2
 print (sp.run())
 
 def AppendWord(word):
     @statelessPipe(str, str)
-    def append(inp):
+    def append(await):
+        inp = await()
         return "%s %s" % (inp, word)
     return append
 
-sp = pr >> AppendWord("you,") >> AppendWord("World!") >> co
+sp = pr2 >> AppendWord("you,") >> AppendWord("World!") >> co2
+print (sp.run())
+
+sp = pr1 >> chunks(int, 2) >> co1
 print (sp.run())
