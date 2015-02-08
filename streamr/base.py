@@ -47,6 +47,9 @@ class Producer(StreamPart):
         """
         raise NotImplementedError("Producer::type_out: implement me!")
 
+    def __str__(self):
+        return "(() -> %s)" % self.type_out()
+
 class Consumer(StreamPart):
     """
     A consumer is the sink for a stream, that is it consumes data from upstream
@@ -58,12 +61,16 @@ class Consumer(StreamPart):
         """
         raise NotImplementedError("Consumer::type_in: implement me!")
 
+    def __str__(self):
+        return "(%s -> ())" % self.type_in()
+
 class Pipe(Producer, Consumer):
     """
     A pipe is an element between a source and a sink, that is it consumes data
     from upstream an produces new data for downstream.
     """ 
-    pass
+    def __str__(self):
+        return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
 class StreamProcess(object):
     """
