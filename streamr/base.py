@@ -15,7 +15,7 @@ fault resistant, thus having to do less error handling when actually processing
 data through a pipeline.
 
 Elements of a stream can be combined vertically by using the shift operators 
->> and <<. 
+>> and <<.
 
 It should be possible to process the same pipeline multiple times and even in
 parallel, without the different process interfering with each other.
@@ -252,7 +252,7 @@ class ComposedStreamPart(object):
         self.left.shutdown_state(l)
         self.right.shutdown_state(r)   
 
-class FusePipe(Pipe, ComposedStreamPart):
+class FusePipe(ComposedStreamPart, Pipe):
     """
     A pipe build from two other pipes.
     """
@@ -267,7 +267,7 @@ class FusePipe(Pipe, ComposedStreamPart):
         tmp = self.left.transform(value, l)
         return self.right.transform(value, r)
     
-class AppendPipe(Producer, ComposedStreamPart):
+class AppendPipe(ComposedStreamPart, Producer):
     """
     A producer build from another producer with an appended pipe.
     """
@@ -282,7 +282,7 @@ class AppendPipe(Producer, ComposedStreamPart):
         l, r = state
         return self.left.can_produce(l)
 
-class PrependPipe(Consumer, ComposedStreamPart):
+class PrependPipe(ComposedStreamPart, Consumer):
     """
     A consumer build from another consumer with a prepended pipe.
     """
