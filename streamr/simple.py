@@ -67,3 +67,12 @@ def echo(type, amount):
             for i in range(0, amount):
                 yield value
     return echo
+
+def gate(type, allow_if):
+    @toPipe(type, type)
+    def gate(await):
+        while True:
+            value = await()
+            if allow_if(value):
+                yield value 
+    return gate

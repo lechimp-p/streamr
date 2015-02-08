@@ -27,3 +27,6 @@ print (sp.run())
 
 sp = pr1 >> echo(int, 3) >> co1
 print (sp.run())
+
+sp = pr1 >> gate(int, lambda x: x % 2 == 0) >> co1
+print (sp.run())
