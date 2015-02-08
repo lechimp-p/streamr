@@ -147,6 +147,10 @@ class StreamProcess(object):
     A stream process is a completely defined process between sources and sinks
     with no dangling ends. It could be run.
     """
+    def __init__(self, producer, consumer):
+        self.producer = producer
+        self.consumer = consumer
+
     def run(self):
         """
         Let this stream process run.
