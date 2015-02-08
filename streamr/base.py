@@ -1,18 +1,31 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-class Producer(object):
+class StreamPart(object):
+    """
+    Common base class for the parts of a stream processing pipeline.
+    """
+
+class Producer(StreamPart):
     """
     A producer is the source for a stream, that is, it produces new data for
     the downstream.
     """
-    pass
+    def type_out(self):
+        """
+        Get the type of output this producer produces.
+        """
+        raise NotImplementedError("Producer::type_out: implement me!")
 
-class Consumer(object):
+class Consumer(StreamPart):
     """
     A consumer is the sink for a stream, that is it consumes data from upstream
     without producing new values.
     """
-    pass
+    def type_in(self):
+        """
+        Get the type, this consumer consumes.
+        """
+        raise NotImplementedError("Consumer::type_in: implement me!")
 
 class Pipe(Producer, Consumer):
     """
@@ -26,7 +39,11 @@ class StreamProcess(object):
     A stream process is a completely defined process between sources and sinks
     with no dangling ends. It could be run.
     """
-    pass 
+    def run(self):
+        """
+        Let this stream process run.
+        """
+        pass
 
 # Objects from the classes need to respect the follwing rules, where abbreaviations
 # for the names are used
