@@ -12,20 +12,19 @@ class TestPyTypes(object):
     
     @pytest.fixture
     def base(self):
-        print("HELLO WORLD!")
         return PyType(TestPyTypes.Base)
 
     @pytest.fixture
     def sub(self):
-        self.sub = PyType(TestPyTypes.Sub)
+        return PyType(TestPyTypes.Sub)
 
-    def test_equality(base, sub):
+    def test_equality(self, base, sub):
         assert base == base
         assert sub == sub
         assert base == sub
         assert sub == base
 
-    def test_lowerThan(base, sub):
+    def test_lowerThan(self, base, sub):
         assert not (base < base)
         assert base <= base
         assert not (sub < sub)
@@ -35,7 +34,7 @@ class TestPyTypes(object):
         assert not (sub < base)
         assert not (sub <= base) 
  
-    def test_greaterThan(base, sub):
+    def test_greaterThan(self, base, sub):
         assert not (base > base)
         assert base >= base
         assert not (sub > sub)
