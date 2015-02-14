@@ -21,8 +21,8 @@ class TestPyTypes(object):
     def test_equality(self, base, sub):
         assert base == base
         assert sub == sub
-        assert base == sub
-        assert sub == base
+        assert not (base == sub)
+        assert not (sub == base)
 
     def test_lowerThan(self, base, sub):
         assert not (base < base)
