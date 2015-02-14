@@ -33,7 +33,7 @@ class StreamPart(object):
         """
         Compose two parts to get a new part.
 
-        __rshift__ is left biased, this a >> b >> c = (a >> b) >> c
+        __rshift__ is left biased, thus a >> b >> c = (a >> b) >> c
         """
         return compose_stream_parts(self, other)
 
