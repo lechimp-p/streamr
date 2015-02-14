@@ -9,14 +9,21 @@ class TestPyTypes(object):
         pass
     class Sub(Base):
         pass
+
+    class Other(object):
+        pass
     
     @pytest.fixture
     def base(self):
-        return PyType(TestPyTypes.Base)
+        return PyType.get(TestPyTypes.Base)
 
     @pytest.fixture
     def sub(self):
-        return PyType(TestPyTypes.Sub)
+        return PyType.get(TestPyTypes.Sub)
+
+    @pytest.fixture
+    def other(self):
+        return PyType.get(TestPyTypes.Other)
 
     def test_equality(self, base, sub):
         assert base == base
@@ -43,3 +50,98 @@ class TestPyTypes(object):
         assert not (base >= sub)
         assert sub > base
         assert sub >= base
+
+    def test_noRelationToOther(self, base, sub, other):
+        assert not (base == other)
+        assert base != other
+        assert not (base <= other)
+        assert not (base < other)
+        assert not (base >= other)
+        assert not (base > other)
+
+class TestProductTypes(object):
+    class Base(object):
+        pass
+    class Sub(Base):
+        pass
+
+    class Other(object):
+        pass
+    
+    @pytest.fixture
+    def base(self):
+        return PyType.get(TestPyTypes.Base)
+
+    @pytest.fixture
+    def sub(self):
+        return PyType.get(TestPyTypes.Sub)
+
+    @pytest.fixture
+    def other(self):
+        return PyType.get(TestPyTypes.Other)
+
+    def test_comparison1(self, base, sub):
+        t1 = ProductType.get(base, base)
+        t2 = ProductType.get(base, base)
+
+        assert t1 == t2
+        assert t1 <= t2
+        assert t1 >= t2
+        assert t2 <= t1
+        assert t2 >= t2
+        assert not (t1 < t2)
+        assert not (t1 > t2)
+        assert not (t2 < t1)
+        assert not (t2 > t1)
+        assert not (t2 != t1)
+
+    def test_comparison2(self, base, sub):
+        t1 = ProductType.get(base, sub)
+        t2 = ProductType.get(base, base)
+
+        assert t1 != t2
+        assert not (t1 == t2)
+        assert t2 != t1
+        assert not (t2 == t1)
+        assert t1 >= t2
+        assert t1 > t2
+        assert not (t1 <= t2)
+        assert not (t1 < t2)
+        assert not (t2 >= t1)
+        assert not (t2 > t1)
+        assert t2 <= t1
+        assert t2 < t1
+
+    def test_comparison3(self, base, sub):
+        t1 = ProductType.get(sub, sub)
+        t2 = ProductType.get(base, base)
+
+        assert t1 != t2
+        assert not (t1 == t2)
+        assert t2 != t1
+        assert not (t2 == t1)
+        assert t1 >= t2
+        assert t1 > t2
+        assert not (t1 <= t2)
+        assert not (t1 < t2)
+        assert not (t2 >= t1)
+        assert not (t2 > t1)
+        assert t2 <= t1
+        assert t2 < t1
+
+    def test_comparison4(self, base, other):
+        t1 = ProductType.get(base, other)
+        t2 = ProductType.get(base, base)
+
+        assert t1 != t2
+        assert not (t1 == t2)
+        assert t2 != t1
+        assert not (t2 == t1)
+        assert not (t1 >= t2)
+        assert not (t1 > t2)
+        assert not (t1 <= t2)
+        assert not (t1 < t2)
+        assert not (t2 >= t1)
+        assert not (t2 > t1)
+        assert not (t2 <= t1)
+        assert not (t2 < t1)
