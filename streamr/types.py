@@ -54,6 +54,10 @@ class PyType(Type):
     def __init__(self, py_type):
         self.py_type = py_type
 
+    @staticmethod
+    def create(py_type):
+        return PyType(py_type)
+
 class ProductType(Type):
     """
     Represents a product type, that is a tuple of types.
@@ -93,9 +97,9 @@ class TypeEngine(object):
             return 0
 
         if not isinstance(l, Type):
-            return self.compare(PyType(l), r)
+            return self.compare(PyType.create(l), r)
         if not isinstance(r, Type):
-            return self.compare(l, PyType(r))
+            return self.compare(l, PyType.create(r))
 
         tys = (type(l), type(r))
         if tys == (PyType, PyType):
