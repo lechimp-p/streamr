@@ -104,13 +104,13 @@ class TestProductTypes(object):
         assert t2 != t1
         assert not (t2 == t1)
         assert t1 >= t2
-        assert t1 > t2
+        assert not (t1 > t2)
         assert not (t1 <= t2)
         assert not (t1 < t2)
         assert not (t2 >= t1)
         assert not (t2 > t1)
         assert t2 <= t1
-        assert t2 < t1
+        assert not (t2 < t1)
 
     def test_comparison3(self, base, sub):
         t1 = ProductType.get(sub, sub)
