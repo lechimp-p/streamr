@@ -53,7 +53,7 @@ class Type(object):
     def __gt__(self, other):
         return Type.engine.gt(self, other)
     def __call__(self, other):
-        return Type.engine.call(self, other)
+        return Type.engine.apply(self, other)
 
     def __hash__(self):
         """
@@ -253,7 +253,7 @@ class TypeEngine(object):
 
         return False
 
-    def call(self, l, r):
+    def apply(self, l, r):
         if not isinstance(l, ArrowType):
             raise ValueError("Can't call non arrow type.")
 
