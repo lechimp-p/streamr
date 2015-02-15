@@ -37,6 +37,7 @@ function, that creates any possible b for any possible a.
 """
 
 from functools import reduce
+import re
 
 class Type(object):
     """
@@ -99,7 +100,8 @@ class PyType(Type):
     """
     def __init__(self, py_type):
         if not isinstance(py_type, type):
-            raise ValueError("Expected an instance of pythons type class.")
+            raise ValueError("Expected an instance of pythons type class, "
+                             "instead got %s." % type(py_type))
 
         self.py_type = py_type
 
@@ -111,6 +113,10 @@ class PyType(Type):
             PyType.cache[py_type] = PyType(py_type)
 
         return PyType.cache[py_type]
+
+    def __str__(self):
+        s = str(self.py_type)
+        return re.match(".*[']([^']+)[']", s).group(1)
 
 class ProductType(Type):
     """
@@ -146,6 +152,9 @@ class ProductType(Type):
 
         return ProductType.cache[types]
 
+    def __str__(self):
+        return "(%s)" % reduce(lambda a,b : "%s, %s" % (a,b), self.types)
+
 class ListType(Type):
     """
     Represents a list type with items of one fixed other type.
@@ -166,6 +175,9 @@ class ListType(Type):
             ListType.cache[item_type] = ListType(item_type)
 
         return ListType.cache[item_type]
+
+    def __str__(self):
+        return "[%s]" % self.item_type
 
 class ArrowType(Type):
     """
@@ -194,6 +206,9 @@ class ArrowType(Type):
 
         return ArrowType.cache[(l_type, r_type)]
 
+    def __str__(self):
+        return "(%s -> %s)" % (self.l_type, self.r_type)
+
 class TypeVar(Type):
     """
     Represents a type that has yet to be inferred.
@@ -204,6 +219,9 @@ class TypeVar(Type):
     @staticmethod
     def get():
         return TypeVar()
+
+    def __str__(self):
+        return str(id(self))[-2:-1]
 
 class TypeEngine(object):
     """
@@ -264,7 +282,7 @@ class TypeEngine(object):
             raise ValueError("Can't call non arrow type.")
 
         if isinstance(l.l_type, TypeVar):
-            return self.replace(l.l_type, l.r_type, r)
+            return self.replace(l.r_type, l.l_type, r)
 
         if not l.l_type <= r:
             raise ValueError("Can't use %s as %s." % (r, l.l_type))
@@ -279,7 +297,7 @@ class TypeEngine(object):
 
         repl = lambda x: self.replace(x, what, wit)
         if t == ProductType:
-            return ProductType.get(map(repl, where.types)) 
+            return ProductType.get(*(repl(x) for x in where.types))
         if t == ListType:
             return ListType.get(repl(where.item_type))
         if t == ArrowType:

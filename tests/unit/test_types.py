@@ -237,4 +237,6 @@ class TestApplicationType(object):
         fun = ArrowType.get(var, (var, other))
         app = fun(base)
 
+        print("%s" % fun)
+        print("%s" % app)
         assert app == (base, other)
