@@ -32,6 +32,8 @@ TODO:
 * A python class could be understand as a constrained on a type in the
 spirit of haskell type classes. Thus it could be usefull to allow to express
 that a type should be a subclass of multiple other types.
+* Something should forbid impossible functions like a -> b. One can't write a
+function, that creates any possible b for any possible a.
 """
 
 from functools import reduce
