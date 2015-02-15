@@ -158,7 +158,7 @@ class TypeEngine(object):
     Engine that does type checking and inference.
     """
     def lt(self, l, r):
-        return self.withComparisons(l, r, {
+        return self._withComparisons(l, r, {
               PyType :      lambda l, r: 
                 l.py_type != r.py_type and issubclass(r.py_type, l.py_type)
             , ProductType : lambda l, r: 
@@ -171,47 +171,21 @@ class TypeEngine(object):
                 
         })
     def le(self, l, r):
-        return self.withComparisons(l, r, {
-              PyType :     lambda l, r: 
-                issubclass(r.py_type, l.py_type)
-            , ProductType: lambda l, r:
+        return self._withComparisons(l, r, {
+              ProductType: lambda l, r:
                 len(l.types) == len(r.types)
                 and ALL((v[0] <= v[1] for v in zip(l.types, r.types)))
-            , ListType :    lambda l, r:
-                l.item_type <= r.item_type
-            , ArrowType :   lambda l, r:
-                l.l_type >= r.l_type or l.r_type <= r.r_type
-        })
+        }, lambda l, r: l == r or l < r)
     def eq(self, l, r):
         return id(l) == id(r)
     def ne(self, l, r):
         return id(l) != id(r)
     def ge(self, l, r):
-        return self.withComparisons(l, r, {
-              PyType :     lambda l, r:
-                issubclass(l.py_type, r.py_type)
-            , ProductType: lambda l, r:
-                len(l.types) == len(r.types)
-                and ALL((v[0] >= v[1] for v in zip(l.types, r.types)))
-            , ListType :    lambda l, r:
-                l.item_type >= r.item_type
-            , ArrowType :   lambda l, r:
-                l.l_type <= r.l_type or l.r_type >= r.r_type
-        })
+        return self.le(r, l)
     def gt(self, l, r):
-        return self.withComparisons(l, r, {
-              PyType :     lambda l, r:
-                l.py_type != r.py_type and issubclass(l.py_type, r.py_type)
-            , ProductType: lambda l, r:
-                len(l.types) == len(r.types)
-                and ALL((v[0] > v[1] for v in zip(l.types, r.types)))
-            , ListType :    lambda l, r:
-                l.item_type > r.item_type
-            , ArrowType :   lambda l, r:
-                l.l_type < r.l_type or l.r_type > r.r_type
-        })
+        return self.lt(r, l)
 
-    def withComparisons(self, l, r, comparisons):
+    def _withComparisons(self, l, r, comparisons, default = None):
         if not isinstance(l, Type):
             return self.withComparisons(PyType.get(l), r, comparisons)
         if not isinstance(r, Type):
@@ -225,6 +199,9 @@ class TypeEngine(object):
             if key == tl:
                 return value(l, r)
         
+        if default:
+            return default(l, r)
+
         return False
 
 Type.engine = TypeEngine()
