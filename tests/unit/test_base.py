@@ -3,14 +3,17 @@ import pytest
 from streamr import *
 
 class _TestProducer():
-    """
-    Checks whether the implementation of the producer fits the definition.
-    """
+    def testIsInstanceOfProducer(self, producer):
+        assert isinstance(producer, Producer) 
 
-    producer = None # Expected to contain a Producer after setup.
+    def testTypeOut(self, producer):
+        assert isinstance(producer.typeOut(), Type)
 
-    def testIsInstanceOfProducer(self):
-        assert isinstance(self.producer, Producer) 
 
-    
+class _TestConsumer():
+    def testIsInstanceOfConsumer(self, consumer):
+        assert ininstance(consumer, Consumer)
+
+    def testTypeIn(self, consumer):
+        assert isinstance(consumer.typeIn(), Type)
     
