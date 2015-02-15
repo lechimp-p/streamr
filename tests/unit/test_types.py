@@ -217,3 +217,10 @@ class TestTypeVar(object):
         assert t1 != t2
         assert t2 == t2
         assert t2 != t1
+
+class TestApplicationType(object):
+    def test_application1(self, base):
+        fun = ArrowType.get(base, base)
+        app = ApplicationType.get(fun, base)
+
+        assert app == base

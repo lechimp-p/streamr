@@ -186,6 +186,31 @@ class ArrowType(Type):
 
         return ArrowType.cache[(l_type, r_type)]
 
+class ApplicationType(Type):
+    """
+    Represents the application of one type to another.
+    """
+    def __init__(self, l_type, r_type):
+        if not isinstance(l_type, Type) or not isinstance(r_type, Type):
+            raise ValueError("Expected instances of Type as arguments.")
+
+        self.l_type = l_type
+        self.r_type = r_type
+
+    cache = {}
+
+    @staticmethod
+    def get(l_type, r_type):
+        l_type = Type.get(l_type)
+        r_type = Type.get(r_type)
+
+        if not (l_type, r_type) in ApplicationType.cache:
+            ApplicationType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
+
+        return ApplicationType.cache[(l_type, r_type)]
+
+       
+
 class TypeVar(Type):
     """
     Represents a type that has yet to be inferred.
