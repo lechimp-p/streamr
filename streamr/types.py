@@ -74,6 +74,18 @@ class ProductType(Type):
     def get(*types):
         if len(types) == 1:
             return PyType.get(types[0])
+
+        def flatten_product_types(types):
+            res = []
+            for t in types:
+                if isinstance(t, ProductType):
+                    res += flatten_product_types(t.types)
+                else:
+                    res.append(t)
+            return res
+
+        types = flatten_product_types(types)
+
         return ProductType(*types)
 
 class TypeEngine(object):
