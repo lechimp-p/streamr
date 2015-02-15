@@ -32,8 +32,6 @@ TODO:
 * A python class could be understand as a constrained on a type in the
 spirit of haskell type classes. Thus it could be usefull to allow to express
 that a type should be a subclass of multiple other types.
-* Caching of type instances could be usefull. Equality tests could be cut down
-to tests in id(type).
 """
 
 from functools import reduce
@@ -54,6 +52,12 @@ class Type(object):
         return Type.engine.ge(self, other)
     def __gt__(self, other):
         return Type.engine.gt(self, other)
+
+    def __hash__(self):
+        """
+        Hash based on id, since every type object should only be created once.
+        """
+        return id(self)
      
 
 class PyType(Type):
@@ -63,12 +67,17 @@ class PyType(Type):
     def __init__(self, py_type):
         self.py_type = py_type
 
+    cache = {}
+
     @staticmethod
     def get(py_type):
         if isinstance(py_type, Type):
             return py_type
-        return PyType(py_type)
+        
+        if not py_type in PyType.cache:
+            PyType.cache[py_type] = PyType(py_type)
 
+        return PyType.cache[py_type]
 
 class ProductType(Type):
     """
@@ -76,6 +85,8 @@ class ProductType(Type):
     """
     def __init__(self, *types):
         self.types = types
+
+    cache = {}
 
     @staticmethod
     def get(*types):
@@ -88,12 +99,15 @@ class ProductType(Type):
                 if isinstance(t, ProductType):
                     res += flatten_product_types(t.types)
                 else:
-                    res.append(t)
+                    res.append(PyType.get(t))
             return res
 
-        types = flatten_product_types(types)
+        types = tuple(flatten_product_types(types))
 
-        return ProductType(*types)
+        if not types in ProductType.cache:
+            ProductType.cache[types] = ProductType(*types)
+
+        return ProductType.cache[types]
 
 class ListType(Type):
     """
@@ -101,10 +115,15 @@ class ListType(Type):
     """
     def __init__(self, item_type):
         self.item_type = item_type
+
+    cache = {}
     
     @staticmethod
     def get(item_type):
-        return ListType(PyType.get(item_type))
+        if not item_type in ListType.cache:
+            ListType.cache[item_type] = ListType(PyType.get(item_type))
+
+        return ListType.cache[item_type]
 
 class ArrowType(Type):
     """
@@ -114,9 +133,14 @@ class ArrowType(Type):
         self.l_type = l_type
         self.r_type = r_type
 
+    cache = {}
+
     @staticmethod
     def get(l_type, r_type):
-        return ArrowType(PyType.get(l_type), PyType.get(r_type))
+        if not (l_type, r_type) in ArrowType.cache:
+            ArrowType.cache[(l_type, r_type)] = ArrowType(PyType.get(l_type), PyType.get(r_type))
+
+        return ArrowType.cache[(l_type, r_type)]
 
 class TypeVar(Type):
     """
@@ -159,34 +183,9 @@ class TypeEngine(object):
                 l.l_type >= r.l_type or l.r_type <= r.r_type
         })
     def eq(self, l, r):
-        if id(l) == id(r):
-            return True
-
-        return self.withComparisons(l, r, {
-              PyType :     lambda l, r:
-                l.py_type == r.py_type
-            , ProductType: lambda l, r:
-                len(l.types) == len(r.types)
-                and ALL((v[0] == v[1] for v in zip(l.types, r.types)))
-            , ListType :    lambda l, r:
-                l.item_type == r.item_type
-            , ArrowType :   lambda l, r:
-                l.l_type == r.l_type and l.r_type == r.r_type
-        })
+        return id(l) == id(r)
     def ne(self, l, r):
-        return self.withComparisons(l, r, {
-              PyType :     lambda l, r:
-                l.py_type != r.py_type
-            , ProductType: lambda l, r:
-                len(l.types) != len(r.types)
-                or ANY((v[0] != v[1] for v in zip(l.types, r.types)))
-            , ListType :    lambda l, r:
-                l.item_type != r.item_type
-            , ArrowType :   lambda l, r:
-                l.l_type != r.l_type or l.r_type != r.r_type
-            , TypeVar:      lambda l, r:
-                id(l) != id(r)
-        })
+        return id(l) != id(r)
     def ge(self, l, r):
         return self.withComparisons(l, r, {
               PyType :     lambda l, r:
