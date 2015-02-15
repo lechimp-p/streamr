@@ -29,6 +29,8 @@ where the direction of the operator shows the direction in which a casting is
 possible, thus subclass >= class.
 """
 
+from functools import reduce
+
 class Type(object):
     """
     Base class representing a type.
@@ -56,6 +58,8 @@ class PyType(Type):
 
     @staticmethod
     def get(py_type):
+        if isinstance(py_type, Type):
+            return py_type
         return PyType(py_type)
 
 
@@ -66,63 +70,91 @@ class ProductType(Type):
     def __init__(self, *types):
         self.types = types
 
+    @staticmethod
+    def get(*types):
+        if len(types) == 1:
+            return PyType.get(types[0])
+        return ProductType(*types)
+
+def ALL(l):
+    for v in l:
+        if not v:
+            return False
+    return True
+
+def ANY(l):
+    for v in l:
+        if v:
+            return True
+    return False
+
 class TypeEngine(object):
     """
     Engine that does type checking and inference.
     """
     def lt(self, l, r):
-        res = self.compare(l, r)
-        return False if res is None else res == -1
+        return self.withComparisons(l, r, {
+              PyType :      lambda l, r: 
+                l.py_type != r.py_type and issubclass(r.py_type, l.py_type)
+            , ProductType : lambda l, r: 
+                len(l.types) == len(r.types) 
+                and ALL((v[0] < v[1] for v in zip(l.types, r.types)))
+        })
     def le(self, l, r):
-        res = self.compare(l, r)
-        return False if res is None else res <= 0 
+        return self.withComparisons(l, r, {
+              PyType :     lambda l, r: 
+                issubclass(r.py_type, l.py_type)
+            , ProductType: lambda l, r:
+                len(l.types) == len(r.types)
+                and ALL((v[0] <= v[1] for v in zip(l.types, r.types)))
+        })
     def eq(self, l, r):
-        res = self.compare(l, r)
-        return False if res is None else res == 0
+        return self.withComparisons(l, r, {
+              PyType :     lambda l, r:
+                l.py_type == r.py_type
+            , ProductType: lambda l, r:
+                len(l.types) == len(r.types)
+                and ALL((v[0] == v[1] for v in zip(l.types, r.types)))
+        })
     def ne(self, l, r):
-        res = self.compare(l, r)
-        return True if res is None else res != 0
+        return self.withComparisons(l, r, {
+              PyType :     lambda l, r:
+                l.py_type != r.py_type
+            , ProductType: lambda l, r:
+                len(l.types) != len(r.types)
+                or ANY((v[0] != v[1] for v in zip(l.types, r.types)))
+        })
     def ge(self, l, r):
-        res = self.compare(l, r)
-        return False if res is None else res >= 0 
+        return self.withComparisons(l, r, {
+              PyType :     lambda l, r:
+                issubclass(l.py_type, r.py_type)
+            , ProductType: lambda l, r:
+                len(l.types) == len(r.types)
+                and ALL((v[0] >= v[1] for v in zip(l.types, r.types)))
+        })
     def gt(self, l, r):
-        res = self.compare(l, r)
-        return False if res is None else res == 1
+        return self.withComparisons(l, r, {
+              PyType :     lambda l, r:
+                l.py_type != r.py_type and issubclass(l.py_type, r.py_type)
+            , ProductType: lambda l, r:
+                len(l.types) == len(r.types)
+                and ALL((v[0] > v[1] for v in zip(l.types, r.types)))
+        })
 
-    def compare(self, l, r):
-        """
-        Returns 0 on equality -1 on l < r and 1 on l > r. If the types have
-        nothing to do which each other, None is returned.
-        """
-        if id(l) == id(r):
-            return 0
-
+    def withComparisons(self, l, r, comparisons):
         if not isinstance(l, Type):
-            return self.compare(PyType.get(l), r)
+            return self.withComparisons(PyType.get(l), r, comparisons)
         if not isinstance(r, Type):
-            return self.compare(l, PyType.get(r))
+            return self.withComparisons(l, PyType.get(r), comparisons)
 
-        tys = (type(l), type(r))
-        if tys == (PyType, PyType):
-            return self.comparePyTypes(l, r)
-        return None
+        tl, tr = type(l), type(r)
+        if tl != tr:
+            return False
+
+        for key, value in comparisons.items():
+            if key == tl:
+                return value(l, r)
         
-    def comparePyTypes(self, l, r):
-        """
-        Helper for compare.
-        """
-        lty = l.py_type
-        rty = r.py_type
+        return False
 
-        if lty == rty:
-            return 0
-
-        if issubclass(lty, rty):
-            return 1
-
-        if issubclass(rty, lty):
-            return -1
-             
-        return None
- 
 Type.engine = TypeEngine()
