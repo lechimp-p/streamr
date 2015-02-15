@@ -158,3 +158,52 @@ class TestListTypes(object):
         assert not (t1 <= t3)
         assert not (t1 > t3)
         assert not (t1 < t3)
+
+class TestArrowType(object):
+    def test_comparison1(self, base):
+        t1 = ArrowType.get(base, base)
+        t2 = ArrowType.get(base, base)
+
+        assert t1 == t2
+        assert t1 >= t2
+        assert t1 <= t2
+        assert not(t1 < t2)
+        assert not(t1 > t2)
+        assert not(t1 != t2)
+        assert t2 == t1
+        assert t2 >= t1
+        assert t2 <= t1
+        assert not(t2 < t1)
+        assert not(t2 > t1)
+        assert not(t2 != t1)
+
+    def test_comparison2(self, base, sub, other):
+        t1 = ArrowType.get(base, other) # base -> other
+        t2 = ArrowType.get(sub, other)  # sub -> other
+
+        # This looks counterintuitive, since it reverses the order of the >
+        # applied on sub and base.
+        # Reasoning is as such: If if have a function from base to other, i can
+        # use it in places where i need a function from sub to other, since sub
+        # should contain the same information than base. On the other hand, i can't
+        # use a function from sub to other in places where a function from base to
+        # other is expected, since the function might need information from sub, 
+        # that base can't provide.
+        assert t1 >= t2
+        assert t1 > t2
+        assert t2 <= t1
+        assert t2 < t1
+        assert not (t1 == t2)
+        assert t1 != t2
+
+    def test_comparison3(self, base, sub, other):
+        t1 = ArrowType.get(other, base) # other -> base
+        t2 = ArrowType.get(other, sub)  # other -> sub
+
+        # Here the same order of > applies then on base and sub.
+        assert t2 >= t1
+        assert t2 > t1
+        assert t1 < t2
+        assert t1 <= t2
+        assert not (t1 == t2)
+        assert t1 != t2
