@@ -81,6 +81,8 @@ class Type(object):
                 return py_type
             if isinstance(py_type, list):
                 return ListType.get(Type.get(*py_type))
+            if isinstance(py_type, tuple):
+                return ProductType.get(*py_type)
 
             return PyType.get(py_type)
 
