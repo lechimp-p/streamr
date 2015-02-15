@@ -4,27 +4,29 @@ import pytest
 
 from streamr.types import *
 
+class Base(object):
+    pass
+class Sub(Base):
+    pass
+
+class Other(object):
+    pass
+
+@pytest.fixture
+def base():
+    return PyType.get(Base)
+
+@pytest.fixture
+def sub():
+    return PyType.get(Sub)
+
+@pytest.fixture
+def other():
+    return PyType.get(Other)
+
+
+
 class TestPyTypes(object):
-    class Base(object):
-        pass
-    class Sub(Base):
-        pass
-
-    class Other(object):
-        pass
-    
-    @pytest.fixture
-    def base(self):
-        return PyType.get(TestPyTypes.Base)
-
-    @pytest.fixture
-    def sub(self):
-        return PyType.get(TestPyTypes.Sub)
-
-    @pytest.fixture
-    def other(self):
-        return PyType.get(TestPyTypes.Other)
-
     def test_equality(self, base, sub):
         assert base == base
         assert sub == sub
@@ -60,26 +62,6 @@ class TestPyTypes(object):
         assert not (base > other)
 
 class TestProductTypes(object):
-    class Base(object):
-        pass
-    class Sub(Base):
-        pass
-
-    class Other(object):
-        pass
-    
-    @pytest.fixture
-    def base(self):
-        return PyType.get(TestPyTypes.Base)
-
-    @pytest.fixture
-    def sub(self):
-        return PyType.get(TestPyTypes.Sub)
-
-    @pytest.fixture
-    def other(self):
-        return PyType.get(TestPyTypes.Other)
-
     def test_comparison1(self, base, sub):
         t1 = ProductType.get(base, base)
         t2 = ProductType.get(base, base)
