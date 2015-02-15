@@ -28,9 +28,12 @@ The lower than and greather than operators are used to express subclassing,
 where the direction of the operator shows the direction in which a casting is
 possible, thus subclass >= class.
 
-TODO: A python class could be understand as a constrained on a type in the
+TODO: 
+* A python class could be understand as a constrained on a type in the
 spirit of haskell type classes. Thus it could be usefull to allow to express
 that a type should be a subclass of multiple other types.
+* Caching of type instances could be usefull. Equality tests could be cut down
+to tests in id(type).
 """
 
 from functools import reduce
@@ -156,6 +159,9 @@ class TypeEngine(object):
                 l.l_type >= r.l_type or l.r_type <= r.r_type
         })
     def eq(self, l, r):
+        if id(l) == id(r):
+            return True
+
         return self.withComparisons(l, r, {
               PyType :     lambda l, r:
                 l.py_type == r.py_type
@@ -178,6 +184,8 @@ class TypeEngine(object):
                 l.item_type != r.item_type
             , ArrowType :   lambda l, r:
                 l.l_type != r.l_type or l.r_type != r.r_type
+            , TypeVar:      lambda l, r:
+                id(l) != id(r)
         })
     def ge(self, l, r):
         return self.withComparisons(l, r, {
