@@ -58,22 +58,49 @@ class Type(object):
         Hash based on id, since every type object should only be created once.
         """
         return id(self)
-     
+
+    @staticmethod
+    def get(*py_types):
+        """
+        Factory method for types. Tries to turn a python value into a (possibly 
+        nested) Type by using factories of the subclasses.
+
+        Will create TypeVars, PyTypes, ListTypes or ProductTypes.
+
+        Empty arguments will create a TypeVar. One list argument will create a
+        ListType, where the items in the list will be used as a product type. 
+        One non list argument will yield a PyType. Multiple arguments will create
+        a product type.
+        """
+        if len(py_types) == 0:
+            return TypeVar.get()
+
+        if len(py_types) == 1:
+            py_type = py_types[0]
+            if isinstance(py_type, Type):
+                return py_type
+            if isinstance(py_type, list):
+                return ListType.get(Type.get(*py_type))
+
+            return PyType.get(py_type)
+
+        return ProductType.get(*py_types)
+        
 
 class PyType(Type):
     """
     Represents a python class.
     """
     def __init__(self, py_type):
+        if not isinstance(py_type, type):
+            raise ValueError("Expected an instance of pythons type class.")
+
         self.py_type = py_type
 
     cache = {}
 
     @staticmethod
     def get(py_type):
-        if isinstance(py_type, Type):
-            return py_type
-        
         if not py_type in PyType.cache:
             PyType.cache[py_type] = PyType(py_type)
 
@@ -84,6 +111,10 @@ class ProductType(Type):
     Represents a product type, that is a tuple of types.
     """
     def __init__(self, *types):
+        for t in types:
+            if not isinstance(t, Type):
+                raise ValueError("Expected list of Type instances as argument.")
+
         self.types = types
 
     cache = {}
@@ -91,7 +122,7 @@ class ProductType(Type):
     @staticmethod
     def get(*types):
         if len(types) == 1:
-            return PyType.get(types[0])
+            return Type.get(types[0])
 
         def flatten_product_types(types):
             res = []
@@ -99,7 +130,7 @@ class ProductType(Type):
                 if isinstance(t, ProductType):
                     res += flatten_product_types(t.types)
                 else:
-                    res.append(PyType.get(t))
+                    res.append(Type.get(t))
             return res
 
         types = tuple(flatten_product_types(types))
@@ -114,14 +145,19 @@ class ListType(Type):
     Represents a list type with items of one fixed other type.
     """
     def __init__(self, item_type):
+        if not isinstance(item_type, Type):
+            raise ValueError("Expected instance of Type as argument.")
+
         self.item_type = item_type
 
     cache = {}
     
     @staticmethod
-    def get(item_type):
+    def get(*item_type):
+        item_type = Type.get(*item_type)
+
         if not item_type in ListType.cache:
-            ListType.cache[item_type] = ListType(PyType.get(item_type))
+            ListType.cache[item_type] = ListType(item_type)
 
         return ListType.cache[item_type]
 
@@ -130,6 +166,9 @@ class ArrowType(Type):
     Represents the type of a transformation from one type to another.
     """
     def __init__(self, l_type, r_type):
+        if not isinstance(l_type, Type) or not isinstance(r_type, Type):
+            raise ValueError("Expected instances of Type as arguments.")
+
         self.l_type = l_type
         self.r_type = r_type
 
@@ -137,8 +176,11 @@ class ArrowType(Type):
 
     @staticmethod
     def get(l_type, r_type):
+        l_type = Type.get(l_type)
+        r_type = Type.get(r_type)
+
         if not (l_type, r_type) in ArrowType.cache:
-            ArrowType.cache[(l_type, r_type)] = ArrowType(PyType.get(l_type), PyType.get(r_type))
+            ArrowType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
 
         return ArrowType.cache[(l_type, r_type)]
 
@@ -187,9 +229,9 @@ class TypeEngine(object):
 
     def _withComparisons(self, l, r, comparisons, default = None):
         if not isinstance(l, Type):
-            return self.withComparisons(PyType.get(l), r, comparisons)
+            return self.withComparisons(Type.get(l), r, comparisons)
         if not isinstance(r, Type):
-            return self.withComparisons(l, PyType.get(r), comparisons)
+            return self.withComparisons(l, Type.get(r), comparisons)
 
         tl, tr = type(l), type(r)
         if tl != tr:

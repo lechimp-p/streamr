@@ -14,15 +14,15 @@ class Other(object):
 
 @pytest.fixture
 def base():
-    return PyType.get(Base)
+    return Type.get(Base)
 
 @pytest.fixture
 def sub():
-    return PyType.get(Sub)
+    return Type.get(Sub)
 
 @pytest.fixture
 def other():
-    return PyType.get(Other)
+    return Type.get(Other)
 
 
 
@@ -63,8 +63,8 @@ class TestPyTypes(object):
 
 class TestProductTypes(object):
     def test_comparison1(self, base, sub):
-        t1 = ProductType.get(base, base)
-        t2 = ProductType.get(base, base)
+        t1 = Type.get(base, base)
+        t2 = Type.get(base, base)
 
         assert t1 == t2
         assert t1 <= t2
@@ -78,8 +78,8 @@ class TestProductTypes(object):
         assert not (t2 != t1)
 
     def test_comparison2(self, base, sub):
-        t1 = ProductType.get(base, sub)
-        t2 = ProductType.get(base, base)
+        t1 = Type.get(base, sub)
+        t2 = Type.get(base, base)
 
         assert t1 != t2
         assert not (t1 == t2)
@@ -95,8 +95,8 @@ class TestProductTypes(object):
         assert not (t2 < t1)
 
     def test_comparison3(self, base, sub):
-        t1 = ProductType.get(sub, sub)
-        t2 = ProductType.get(base, base)
+        t1 = Type.get(sub, sub)
+        t2 = Type.get(base, base)
 
         assert t1 != t2
         assert not (t1 == t2)
@@ -112,8 +112,8 @@ class TestProductTypes(object):
         assert t2 < t1
 
     def test_comparison4(self, base, other):
-        t1 = ProductType.get(base, other)
-        t2 = ProductType.get(base, base)
+        t1 = Type.get(base, other)
+        t2 = Type.get(base, base)
 
         assert t1 != t2
         assert not (t1 == t2)
@@ -129,9 +129,9 @@ class TestProductTypes(object):
         assert not (t2 < t1)
 
     def test_isomorphism(self, base):
-        t1 = ProductType.get(ProductType.get(base, base), base)
-        t2 = ProductType.get(base, ProductType.get(base, base))
-        t3 = ProductType.get(base, base, base)
+        t1 = Type.get(ProductType.get(base, base), base)
+        t2 = Type.get(base, ProductType.get(base, base))
+        t3 = Type.get(base, base, base)
 
         assert t1 == t2
         assert t2 == t1
@@ -142,9 +142,9 @@ class TestProductTypes(object):
 
 class TestListTypes(object):
     def test_comparison(self, base, sub, other):
-        t1 = ListType.get(base)
-        t2 = ListType.get(sub)
-        t3 = ListType.get(other)
+        t1 = Type.get([base])
+        t2 = Type.get([sub])
+        t3 = Type.get([other])
 
         assert t1 == t1
         assert t1 <= t2
@@ -210,8 +210,8 @@ class TestArrowType(object):
 
 class TestTypeVar(object):
     def test_uniqueness(self, base):
-        t1 = TypeVar.get()
-        t2 = TypeVar.get()
+        t1 = Type.get()
+        t2 = Type.get()
 
         assert t1 == t1
         assert t1 != t2
