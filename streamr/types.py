@@ -124,6 +124,8 @@ class TypeEngine(object):
                 and ALL((v[0] < v[1] for v in zip(l.types, r.types)))
             , ListType :    lambda l, r:
                 l.item_type < r.item_type
+            , ArrowType :   lambda l, r:
+                l.l_type > r.l_type or l.r_type < r.r_type
                 
         })
     def le(self, l, r):
@@ -135,6 +137,8 @@ class TypeEngine(object):
                 and ALL((v[0] <= v[1] for v in zip(l.types, r.types)))
             , ListType :    lambda l, r:
                 l.item_type <= r.item_type
+            , ArrowType :   lambda l, r:
+                l.l_type >= r.l_type or l.r_type <= r.r_type
         })
     def eq(self, l, r):
         return self.withComparisons(l, r, {
@@ -145,6 +149,8 @@ class TypeEngine(object):
                 and ALL((v[0] == v[1] for v in zip(l.types, r.types)))
             , ListType :    lambda l, r:
                 l.item_type == r.item_type
+            , ArrowType :   lambda l, r:
+                l.l_type == r.l_type and l.r_type == r.r_type
         })
     def ne(self, l, r):
         return self.withComparisons(l, r, {
@@ -155,6 +161,8 @@ class TypeEngine(object):
                 or ANY((v[0] != v[1] for v in zip(l.types, r.types)))
             , ListType :    lambda l, r:
                 l.item_type != r.item_type
+            , ArrowType :   lambda l, r:
+                l.l_type != r.l_type or l.r_type != r.r_type
         })
     def ge(self, l, r):
         return self.withComparisons(l, r, {
@@ -165,6 +173,8 @@ class TypeEngine(object):
                 and ALL((v[0] >= v[1] for v in zip(l.types, r.types)))
             , ListType :    lambda l, r:
                 l.item_type >= r.item_type
+            , ArrowType :   lambda l, r:
+                l.l_type <= r.l_type or l.r_type >= r.r_type
         })
     def gt(self, l, r):
         return self.withComparisons(l, r, {
@@ -175,6 +185,8 @@ class TypeEngine(object):
                 and ALL((v[0] > v[1] for v in zip(l.types, r.types)))
             , ListType :    lambda l, r:
                 l.item_type > r.item_type
+            , ArrowType :   lambda l, r:
+                l.l_type < r.l_type or l.r_type > r.r_type
         })
 
     def withComparisons(self, l, r, comparisons):
