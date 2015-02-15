@@ -207,3 +207,13 @@ class TestArrowType(object):
         assert t1 <= t2
         assert not (t1 == t2)
         assert t1 != t2
+
+class TestTypeVar(object):
+    def test_uniqueness(self, base):
+        t1 = TypeVar.get()
+        t2 = TypeVar.get()
+
+        assert t1 == t1
+        assert t1 != t2
+        assert t2 == t2
+        assert t2 != t1

@@ -27,6 +27,10 @@ values of type b. Think of tuples like (1,(2,3)) and ((1,2),3).
 The lower than and greather than operators are used to express subclassing,
 where the direction of the operator shows the direction in which a casting is
 possible, thus subclass >= class.
+
+TODO: A python class could be understand as a constrained on a type in the
+spirit of haskell type classes. Thus it could be usefull to allow to express
+that a type should be a subclass of multiple other types.
 """
 
 from functools import reduce
@@ -110,6 +114,17 @@ class ArrowType(Type):
     @staticmethod
     def get(l_type, r_type):
         return ArrowType(PyType.get(l_type), PyType.get(r_type))
+
+class TypeVar(Type):
+    """
+    Represents a type that has yet to be inferred.
+    """
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def get():
+        return TypeVar()
 
 class TypeEngine(object):
     """
