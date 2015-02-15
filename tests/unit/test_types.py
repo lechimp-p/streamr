@@ -231,3 +231,10 @@ class TestApplicationType(object):
         app = fun(base)
 
         assert app == base
+
+    def test_application3(self, base, other):
+        var = Type.get()
+        fun = ArrowType.get(var, (var, other))
+        app = fun(base)
+
+        assert app == (base, other)
