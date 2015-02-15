@@ -139,3 +139,22 @@ class TestProductTypes(object):
         assert t3 == t1
         assert t3 == t2
         assert t2 == t3
+
+class TestListTypes(object):
+    def test_comparison(self, base, sub, other):
+        t1 = ListType.get(base)
+        t2 = ListType.get(sub)
+        t3 = ListType.get(other)
+
+        assert t1 == t1
+        assert t1 <= t2
+        assert t2 >= t1
+        assert t1 < t2
+        assert t2 > t1
+        assert t1 != t2
+        assert t1 != t3
+        assert not (t1 == t3)
+        assert not (t1 >= t3)
+        assert not (t1 <= t3)
+        assert not (t1 > t3)
+        assert not (t1 < t3)
