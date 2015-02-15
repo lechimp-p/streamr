@@ -210,6 +210,7 @@ class TypeEngine(object):
     Engine that does type checking and inference.
     """
     def lt(self, l, r):
+        l,r = self._toType(l,r)
         return self._withComparisons(l, r, {
               PyType :      lambda l, r: 
                 l.py_type != r.py_type and issubclass(r.py_type, l.py_type)
@@ -223,26 +224,27 @@ class TypeEngine(object):
                 
         })
     def le(self, l, r):
+        l,r = self._toType(l,r)
         return self._withComparisons(l, r, {
               ProductType: lambda l, r:
                 len(l.types) == len(r.types)
                 and ALL((v[0] <= v[1] for v in zip(l.types, r.types)))
         }, lambda l, r: l == r or l < r)
     def eq(self, l, r):
+        l,r = self._toType(l,r)
         return id(l) == id(r)
     def ne(self, l, r):
+        l,r = self._toType(l,r)
         return id(l) != id(r)
     def ge(self, l, r):
         return self.le(r, l)
     def gt(self, l, r):
         return self.lt(r, l)
 
-    def _withComparisons(self, l, r, comparisons, default = None):
-        if not isinstance(l, Type):
-            return self.withComparisons(Type.get(l), r, comparisons)
-        if not isinstance(r, Type):
-            return self.withComparisons(l, Type.get(r), comparisons)
+    def _toType(self, l, r):
+        return Type.get(l), Type.get(r)
 
+    def _withComparisons(self, l, r, comparisons, default = None):
         tl, tr = type(l), type(r)
         if tl != tr:
             return False
@@ -257,6 +259,7 @@ class TypeEngine(object):
         return False
 
     def apply(self, l, r):
+        l,r = self._toType(l,r)
         if not isinstance(l, ArrowType):
             raise ValueError("Can't call non arrow type.")
 
