@@ -145,3 +145,15 @@ class TestProductTypes(object):
         assert not (t2 > t1)
         assert not (t2 <= t1)
         assert not (t2 < t1)
+
+    def test_isomorphism(self, base):
+        t1 = ProductType.get(ProductType.get(base, base), base)
+        t2 = ProductType.get(base, ProductType.get(base, base))
+        t3 = ProductType.get(base, base, base)
+
+        assert t1 == t2
+        assert t2 == t1
+        assert t1 == t3
+        assert t3 == t1
+        assert t3 == t2
+        assert t2 == t3

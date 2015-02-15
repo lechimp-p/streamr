@@ -76,18 +76,6 @@ class ProductType(Type):
             return PyType.get(types[0])
         return ProductType(*types)
 
-def ALL(l):
-    for v in l:
-        if not v:
-            return False
-    return True
-
-def ANY(l):
-    for v in l:
-        if v:
-            return True
-    return False
-
 class TypeEngine(object):
     """
     Engine that does type checking and inference.
@@ -158,3 +146,26 @@ class TypeEngine(object):
         return False
 
 Type.engine = TypeEngine()
+
+
+# Helpers
+
+def ALL(l):
+    """
+    Returns True if every element in l is True.
+    """
+    for v in l:
+        if not v:
+            return False
+    return True
+
+def ANY(l):
+    """
+    Returns True if at least one element in is True.
+    """
+    for v in l:
+        if v:
+            return True
+    return False
+
+
