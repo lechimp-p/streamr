@@ -175,6 +175,7 @@ class ArrowType(Type):
 
         # TODO: Something should forbid impossible functions like a -> b.
         # One can't produce an arbitrary b for an arbitrary a
+        # Maybe the correct location is in replace...
 
         self.l_type = l_type
         self.r_type = r_type
