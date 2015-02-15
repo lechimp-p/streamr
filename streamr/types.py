@@ -99,6 +99,18 @@ class ListType(Type):
     def get(item_type):
         return ListType(PyType.get(item_type))
 
+class ArrowType(Type):
+    """
+    Represents the type of a transformation from one type to another.
+    """
+    def __init__(self, l_type, r_type):
+        self.l_type = l_type
+        self.r_type = r_type
+
+    @staticmethod
+    def get(l_type, r_type):
+        return ArrowType(PyType.get(l_type), PyType.get(r_type))
+
 class TypeEngine(object):
     """
     Engine that does type checking and inference.
@@ -112,6 +124,7 @@ class TypeEngine(object):
                 and ALL((v[0] < v[1] for v in zip(l.types, r.types)))
             , ListType :    lambda l, r:
                 l.item_type < r.item_type
+                
         })
     def le(self, l, r):
         return self.withComparisons(l, r, {
