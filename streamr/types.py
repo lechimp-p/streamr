@@ -88,6 +88,17 @@ class ProductType(Type):
 
         return ProductType(*types)
 
+class ListType(Type):
+    """
+    Represents a list type with items of one fixed other type.
+    """
+    def __init__(self, item_type):
+        self.item_type = item_type
+    
+    @staticmethod
+    def get(item_type):
+        return ListType(PyType.get(item_type))
+
 class TypeEngine(object):
     """
     Engine that does type checking and inference.
@@ -99,6 +110,8 @@ class TypeEngine(object):
             , ProductType : lambda l, r: 
                 len(l.types) == len(r.types) 
                 and ALL((v[0] < v[1] for v in zip(l.types, r.types)))
+            , ListType :    lambda l, r:
+                l.item_type < r.item_type
         })
     def le(self, l, r):
         return self.withComparisons(l, r, {
@@ -107,6 +120,8 @@ class TypeEngine(object):
             , ProductType: lambda l, r:
                 len(l.types) == len(r.types)
                 and ALL((v[0] <= v[1] for v in zip(l.types, r.types)))
+            , ListType :    lambda l, r:
+                l.item_type <= r.item_type
         })
     def eq(self, l, r):
         return self.withComparisons(l, r, {
@@ -115,6 +130,8 @@ class TypeEngine(object):
             , ProductType: lambda l, r:
                 len(l.types) == len(r.types)
                 and ALL((v[0] == v[1] for v in zip(l.types, r.types)))
+            , ListType :    lambda l, r:
+                l.item_type == r.item_type
         })
     def ne(self, l, r):
         return self.withComparisons(l, r, {
@@ -123,6 +140,8 @@ class TypeEngine(object):
             , ProductType: lambda l, r:
                 len(l.types) != len(r.types)
                 or ANY((v[0] != v[1] for v in zip(l.types, r.types)))
+            , ListType :    lambda l, r:
+                l.item_type != r.item_type
         })
     def ge(self, l, r):
         return self.withComparisons(l, r, {
@@ -131,6 +150,8 @@ class TypeEngine(object):
             , ProductType: lambda l, r:
                 len(l.types) == len(r.types)
                 and ALL((v[0] >= v[1] for v in zip(l.types, r.types)))
+            , ListType :    lambda l, r:
+                l.item_type >= r.item_type
         })
     def gt(self, l, r):
         return self.withComparisons(l, r, {
@@ -139,6 +160,8 @@ class TypeEngine(object):
             , ProductType: lambda l, r:
                 len(l.types) == len(r.types)
                 and ALL((v[0] > v[1] for v in zip(l.types, r.types)))
+            , ListType :    lambda l, r:
+                l.item_type > r.item_type
         })
 
     def withComparisons(self, l, r, comparisons):
