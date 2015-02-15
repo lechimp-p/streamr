@@ -52,6 +52,8 @@ class Type(object):
         return Type.engine.ge(self, other)
     def __gt__(self, other):
         return Type.engine.gt(self, other)
+    def __call__(self, other):
+        return Type.engine.call(self, other)
 
     def __hash__(self):
         """
@@ -171,6 +173,9 @@ class ArrowType(Type):
         if not isinstance(l_type, Type) or not isinstance(r_type, Type):
             raise ValueError("Expected instances of Type as arguments.")
 
+        # TODO: Something should forbid impossible functions like a -> b.
+        # One can't produce an arbitrary b for an arbitrary a
+
         self.l_type = l_type
         self.r_type = r_type
 
@@ -185,31 +190,6 @@ class ArrowType(Type):
             ArrowType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
 
         return ArrowType.cache[(l_type, r_type)]
-
-class ApplicationType(Type):
-    """
-    Represents the application of one type to another.
-    """
-    def __init__(self, l_type, r_type):
-        if not isinstance(l_type, Type) or not isinstance(r_type, Type):
-            raise ValueError("Expected instances of Type as arguments.")
-
-        self.l_type = l_type
-        self.r_type = r_type
-
-    cache = {}
-
-    @staticmethod
-    def get(l_type, r_type):
-        l_type = Type.get(l_type)
-        r_type = Type.get(r_type)
-
-        if not (l_type, r_type) in ApplicationType.cache:
-            ApplicationType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
-
-        return ApplicationType.cache[(l_type, r_type)]
-
-       
 
 class TypeVar(Type):
     """
@@ -272,6 +252,35 @@ class TypeEngine(object):
             return default(l, r)
 
         return False
+
+    def call(self, l, r):
+        if not isinstance(l, ArrowType):
+            raise ValueError("Can't call non arrow type.")
+
+        if isinstance(l.l_type, TypeVar):
+            return self.replace(l.l_type, l.r_type, r)
+
+        if not l.l_type <= r:
+            raise ValueError("Can't use %s as %s." % (r, l.l_type))
+
+        return l.r_type
+
+    def replace(self, where, what, wit):
+        t = type(where)
+
+        if where == what:
+            return wit
+
+        repl = lambda x: self.replace(x, what, wit)
+        if t == ProductType:
+            return ProductType.get(map(repl, where.types)) 
+        if t == ListType:
+            return ListType.get(repl(where.item_type))
+        if t == ArrowType:
+            return ArrowType.get(repl(where.l_type), repl(where.r_type))
+
+        return where
+        
 
 Type.engine = TypeEngine()
 

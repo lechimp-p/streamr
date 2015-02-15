@@ -221,6 +221,13 @@ class TestTypeVar(object):
 class TestApplicationType(object):
     def test_application1(self, base):
         fun = ArrowType.get(base, base)
-        app = ApplicationType.get(fun, base)
+        app = fun(base)
+
+        assert app == base
+
+    def test_application2(self, base):
+        var = Type.get()
+        fun = ArrowType.get(var,var)
+        app = fun(base)
 
         assert app == base
