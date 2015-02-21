@@ -68,7 +68,7 @@ class Type(object):
         """
         Check whether the given value is one of the possible values of the type.
         """
-        raise NotImplementedError() 
+        return Type.engine.contains(self, value)
 
     @staticmethod
     def get(*py_types):
@@ -310,6 +310,23 @@ class TypeEngine(object):
             return ArrowType.get(repl(where.l_type), repl(where.r_type))
 
         return where
+
+    def contains(self, _type, value):
+        t = type(_type)
+        
+        if t == PyType:
+            return isinstance(value, _type.py_type)
+        if t == ProductType:
+            if type(value) != tuple:
+                return False
+            if len(value) != len(_type.types):
+                return False
+            return ALL((v[0].contains(v[1]) for v in zip(_type.types, value))) 
+        if t == ListType:
+            return ALL((_type.item_type.contains(v) for v in value))
+
+        return False
+        
         
 
 Type.engine = TypeEngine()
