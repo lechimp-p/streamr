@@ -130,14 +130,12 @@ class Pipe(StreamPart):
         raise NotImplementedError("Pipe::type_in: implement "
                                   "me for class %s!" % type(self))
 
-
     def type_out(self):
         """
         Get the type the transformer sends downstream.
         """
         raise NotImplementedError("Pipe::type_out: implement "
                                   "me for class %s!" % type(self))
-
 
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
