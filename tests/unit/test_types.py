@@ -24,6 +24,19 @@ def sub():
 def other():
     return Type.get(Other)
 
+@pytest.fixture
+def base_inst():
+    return Base()
+
+@pytest.fixture
+def sub_inst():
+    return Sub()
+
+@pytest.fixture
+def other_inst():
+    return Other()
+
+
 
 
 class TestPyTypes(object):
@@ -60,6 +73,12 @@ class TestPyTypes(object):
         assert not (base < other)
         assert not (base >= other)
         assert not (base > other)
+
+    def test_containsValue(self, base, base_inst, sub_inst, other_inst):
+        assert base.contains(base_inst)
+        assert base.contains(sub_inst)
+        assert not base.contains(other_inst)
+
 
 class TestProductTypes(object):
     def test_comparison1(self, base, sub):
@@ -140,6 +159,12 @@ class TestProductTypes(object):
         assert t3 == t2
         assert t2 == t3
 
+    def test_containsValue(self, base, base_inst, other_inst):
+        t = Type.get((base, base))
+
+        assert t.contains((base_inst, base_inst))
+        assert not t.contains((base_inst, other_inst))
+
 class TestListTypes(object):
     def test_comparison(self, base, sub, other):
         t1 = Type.get([base])
@@ -158,6 +183,15 @@ class TestListTypes(object):
         assert not (t1 <= t3)
         assert not (t1 > t3)
         assert not (t1 < t3)
+
+    def test_containsValue(self, base, base_inst, other_inst):
+        t = Type.get([base])
+
+        assert t.contains([])
+        assert t.contains([base_inst])
+        assert t.contains([base_inst, base_inst])
+        assert not t.contains([other_inst])
+        assert not t.contains([base_inst, other_inst])
 
 class TestArrowType(object):
     def test_comparison1(self, base):

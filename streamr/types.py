@@ -64,6 +64,12 @@ class Type(object):
         """
         return id(self)
 
+    def contains(self, value):
+        """
+        Check whether the given value is one of the possible values of the type.
+        """
+        raise NotImplementedError() 
+
     @staticmethod
     def get(*py_types):
         """
