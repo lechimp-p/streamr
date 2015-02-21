@@ -33,7 +33,7 @@ class ListC(Consumer):
     def shutdown_env(self, env):
         pass
 
-    def consume(self, await, list):
+    def consume(self, l, await):
         l = []
         while True:
             try:

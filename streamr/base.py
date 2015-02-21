@@ -103,7 +103,7 @@ class Consumer(StreamPart):
         raise NotImplementedError("Consumer::type_in: implement "
                                   "me for class %s!" % type(self))
 
-    def consume(self, await, env):
+    def consume(self, env, await):
         """
         Consume data from upstream. It must be threadsafe to call consume. 
         Consume must be able to process values with types according to type_in. 
@@ -126,7 +126,7 @@ class Pipe(Producer, Consumer):
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
-    def transform(self, await, env):
+    def transform(self, env, await):
         """
         Take data from upstream and generate data for downstream. Must adhere to
         the types from type_in and type_out. Must be a generator.
@@ -228,12 +228,12 @@ class FusePipe(ComposedStreamPart, Pipe):
     def type_out(self):
         return self.right.type_out()
 
-    def transform(self, await, env):
+    def transform(self, env, await):
         l, r = env 
-        producer_gen = self.left.transform(self, await, l)
+        producer_gen = self.left.transform(self, l, await)
         def await_left():
             return producer_gen.__next__()
-        return self.right.transform(await_left, r)
+        return self.right.transform(r, await_left)
     
 class AppendPipe(ComposedStreamPart, Producer):
     """
@@ -247,7 +247,7 @@ class AppendPipe(ComposedStreamPart, Producer):
         producer_gen = self.left.produce(l)
         def await():
             return producer_gen.__next__()
-        return self.right.transform(await, r)
+        return self.right.transform(r, await)
 
 class PrependPipe(ComposedStreamPart, Consumer):
     """
@@ -256,9 +256,9 @@ class PrependPipe(ComposedStreamPart, Consumer):
     def type_in(self):
         return self.left.type_in()
 
-    def consume(self, await, env):
+    def consume(self, env, await):
         l, r = env
-        producer_gen = self.left.transform(await,l)
+        producer_gen = self.left.transform(l, await)
         def await_left():
             return producer_gen.__next__()
-        return self.right.consume(await_left, r)
+        return self.right.consume(r, await_left)

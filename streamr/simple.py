@@ -35,7 +35,7 @@ class NonEnvPipe(Pipe):
     def shutdown_env(self, env):
         pass
 
-    def transform(self, await, env):
+    def transform(self, env, await):
         return self.fun(await)
 
 def toPipe(type_in, type_out):

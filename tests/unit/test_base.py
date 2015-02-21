@@ -3,13 +3,13 @@ import pytest
 from streamr import *
 
 class _TestProducer():
-    def testIsInstanceOfProducer(self, producer):
+    def test_isInstanceOfProducer(self, producer):
         assert isinstance(producer, Producer) 
 
-    def testTypeOut(self, producer):
+    def test_typeOut(self, producer):
         assert isinstance(producer.typeOut(), Type)
 
-    def testTypeOfProducedValues(self, producer, max_amount):
+    def test_typeOfProducedValues(self, producer, max_amount):
         env = producer.get_initial_env()
         t = producer.typeOut()
         count = 0
@@ -23,9 +23,19 @@ class _TestProducer():
 
 
 class _TestConsumer():
-    def testIsInstanceOfConsumer(self, consumer):
+    def test_isInstanceOfConsumer(self, consumer):
         assert ininstance(consumer, Consumer)
 
-    def testTypeIn(self, consumer):
+    def test_typeIn(self, consumer):
         assert isinstance(consumer.typeIn(), Type)
-    
+
+    def test_consumesValuesOfType(self, consumer, test_values):
+        env = consumer.get_initial_env()
+        t = consumer.typeIn()
+        gen = (i for i in test_values)
+        def await():
+            v = gen.__next__()
+            assert t.contains(v)
+            return v
+
+        consumer.consume(env, await)
