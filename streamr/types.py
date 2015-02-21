@@ -109,7 +109,7 @@ class PyType(Type):
 
     @staticmethod
     def get(py_type):
-        if not py_type in PyType.cache:
+        if py_type not in PyType.cache:
             PyType.cache[py_type] = PyType(py_type)
 
         return PyType.cache[py_type]
@@ -147,7 +147,7 @@ class ProductType(Type):
 
         types = tuple(flatten_product_types(types))
 
-        if not types in ProductType.cache:
+        if types not in ProductType.cache:
             ProductType.cache[types] = ProductType(*types)
 
         return ProductType.cache[types]
@@ -171,7 +171,7 @@ class ListType(Type):
     def get(*item_type):
         item_type = Type.get(*item_type)
 
-        if not item_type in ListType.cache:
+        if item_type not in ListType.cache:
             ListType.cache[item_type] = ListType(item_type)
 
         return ListType.cache[item_type]
@@ -201,7 +201,7 @@ class ArrowType(Type):
         l_type = Type.get(l_type)
         r_type = Type.get(r_type)
 
-        if not (l_type, r_type) in ArrowType.cache:
+        if (l_type, r_type) not in ArrowType.cache:
             ArrowType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
 
         return ArrowType.cache[(l_type, r_type)]
@@ -284,7 +284,7 @@ class TypeEngine(object):
         if isinstance(l.l_type, TypeVar):
             return self.replace(l.r_type, l.l_type, r)
 
-        if not l.l_type <= r:
+        if l.l_type > r:
             raise ValueError("Can't use %s as %s." % (r, l.l_type))
 
         return l.r_type
