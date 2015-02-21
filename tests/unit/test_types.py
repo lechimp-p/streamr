@@ -74,7 +74,7 @@ class TestPyTypes(object):
         assert not (base >= other)
         assert not (base > other)
 
-    def test_containsValue(self, base, base_inst, sub_inst, other_inst):
+    def test_contains(self, base, base_inst, sub_inst, other_inst):
         assert base.contains(base_inst)
         assert base.contains(sub_inst)
         assert not base.contains(other_inst)
@@ -159,7 +159,7 @@ class TestProductTypes(object):
         assert t3 == t2
         assert t2 == t3
 
-    def test_containsValue(self, base, base_inst, other_inst):
+    def test_contains(self, base, base_inst, other_inst):
         t = Type.get((base, base))
 
         assert t.contains((base_inst, base_inst))
@@ -184,7 +184,7 @@ class TestListTypes(object):
         assert not (t1 > t3)
         assert not (t1 < t3)
 
-    def test_containsValue(self, base, base_inst, other_inst):
+    def test_contains(self, base, base_inst, other_inst):
         t = Type.get([base])
 
         assert t.contains([])
