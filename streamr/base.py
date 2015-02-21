@@ -230,7 +230,7 @@ class FusePipe(ComposedStreamPart, Pipe):
 
     def transform(self, await, env):
         l, r = env 
-        producer_gen = self.left.transform(self, await, env)
+        producer_gen = self.left.transform(self, await, l)
         def await_left():
             return producer_gen.__next__()
         return self.right.transform(await_left, r)
