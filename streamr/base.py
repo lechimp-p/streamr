@@ -189,7 +189,7 @@ def compose_stream_parts(left, right):
     Throws TypeErrors when parts can't be combined.
     """
     if isinstance(left, Pipe) and isinstance(right, Pipe):
-        return FusePipes(left, right)
+        return FusePipe(left, right)
     elif isinstance(left, Pipe) and isinstance(right, Consumer):
         return PrependPipe(left, right)
     elif isinstance(left, Producer) and isinstance(right, Pipe):
