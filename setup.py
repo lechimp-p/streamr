@@ -7,7 +7,7 @@ base_path = os.path.dirname(os.path.realpath(__file__))
 
 description = "A stream abstraction for Python."
 readme = os.path.join(base_path, "README.md")
-long_description = open(readme, "rb").read()
+long_description = str(open(readme, "rb").read())
 
 setup( name = "streamr"
      , version = "0.1.0"
