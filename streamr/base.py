@@ -118,11 +118,27 @@ class Consumer(StreamPart):
     def __str__(self):
         return "(%s -> ())" % self.type_in()
 
-class Pipe(Producer, Consumer):
+class Pipe(StreamPart):
     """
     A pipe is an element between a source and a sink, that is it consumes data
     from upstream an produces new data for downstream.
     """ 
+    def type_in(self):
+        """
+        Get the type that transformer wants from upstream.
+        """
+        raise NotImplementedError("Pipe::type_in: implement "
+                                  "me for class %s!" % type(self))
+
+
+    def type_out(self):
+        """
+        Get the type the transformer sends downstream.
+        """
+        raise NotImplementedError("Pipe::type_out: implement "
+                                  "me for class %s!" % type(self))
+
+
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
