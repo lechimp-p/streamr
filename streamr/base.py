@@ -30,6 +30,9 @@ Stream processes are consumer driven, that is, a consumer pulls data from
 upstream until he has enough data or there is no more data in the upstream.
 """
 
+if "reduce" not in globals():
+    from functools import reduce
+
 from .types import ArrowType, ALL
 
 class StreamPart(object):
@@ -203,8 +206,14 @@ class StreamProcess(object):
         finally:
             self.producer.shutdown_env(p_env)
             self.consumer.shutdown_env(c_env)
-            
 
+
+###############################################################################
+#
+# Compose stream parts for sequencing
+#
+###############################################################################
+            
 # Objects from the classes need to respect the follwing rules, where abbreaviations
 # for the names are used
 #
@@ -349,14 +358,30 @@ class PrependPipe(ComposedStreamPart, Consumer):
         return self.parts[1].consume(env[1], upstream_left)
 
 
+###############################################################################
+#
+# Stack stream parts for parallelity 
+#
+###############################################################################
+
 def stack_stream_parts(top, bottom):
     if isinstance(top, Pipe) and isinstance(bottom, Pipe):
         return stack_pipe(top, bottom)
+    if isinstance(top, Producer) and isinstance(bottom, Producer):
+        return stack_producer(top, bottom)
+    if isinstance(top, Consumer) and isinstance(bottom, Consumer):
+        return stack_consumer(top, bottom)
     
-    raise TypeError("Can't stack %s and %s" % (left, right))
+    raise TypeError("Can't stack %s and %s" % (top, bottom))
 
 def stack_pipe(top, bottom):
     return StackPipe(top, bottom)
+
+def stack_producer(top, bottom):
+    return StackProducer(top, bottom)
+
+def stack_consumer(top, bottom):
+    return StackConsumer(top, bottom)
 
 class StackPipe(ComposedStreamPart, Pipe):
     """
@@ -376,4 +401,82 @@ class StackPipe(ComposedStreamPart, Pipe):
         return self.tout
 
     def transform(self, env, upstream):
-        pass 
+        amount_chans = len(self.parts)
+        upstream_chans = _split_upstream(upstream, amount_chans)
+
+        gens = []
+        for part, e, i in zip(self.parts, env, range(0, len(self.parts))):
+            gens.append(part.transform(e, upstream_chans[i]))
+
+        while True:
+            vals = []
+            for gen in gens:
+                vals.append(next(gen))
+            yield tuple(vals) 
+
+class StackProducer(ComposedStreamPart, Producer):
+    """
+    Some producers stacked onto each other.
+
+    Will stop to produce if the first producer stops to produce values.
+    """
+    def __init__(self, *producers):
+        assert len(producers) >= 2
+
+        super(StackProducer, self).__init__(*producers)
+
+        self.tout = reduce(lambda x,y: x * y, (p.type_out() for p in producers))
+
+    def type_out(self):
+        return self.tout
+
+    def produce(self, env):
+        gens = []
+        for part, e in zip(self.parts, env):
+            gens.append(part.produce(e))
+
+        while True:
+            vals = []
+            for gen in gens:
+                vals.append(next(gen))
+            yield tuple(vals)
+
+class StackConsumer(ComposedStreamPart, Consumer):
+    """
+    Some consumers stacked onto each other.
+    """
+    def __init__(self, *consumers):
+        assert len(consumers) >= 2
+
+        super(StackConsumer, self).__init__(*consumers)
+
+        self.tin = reduce(lambda x,y: x * y, (c.type_in() for c in consumers))
+
+    def type_in(self):
+        return self.tin
+
+    def consume(self, env, upstream):
+        pass
+
+def _split_upstream(upstream, amount_chans):
+    """
+    Get a list of generators where the values from upstream are decomposed
+    into amount_chans channels and values could be generated on every channel. 
+    """
+    # Use different queues for the values we get from upstream.
+    # It must be possible to yield different amounts of value per
+    # channel.
+    queues = [[]] * amount_chans
+
+    def upstream_chan(num):
+        while True:
+            if len(queues[num]) == 0:
+                new = next(upstream)
+                for i in range(0, amount_chans):
+                    queues[i].append(new[i])
+                
+            yield queues[num].pop(0)
+
+    return [upstream_chan(i) for i in range(0, amount_chans)]
+
+
