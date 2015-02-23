@@ -57,6 +57,11 @@ class Type(object):
         return Type.engine.gt(self, other)
     def __call__(self, other):
         return Type.engine.apply(self, other)
+    def __mul__(self, other):
+        """
+        Create a product type from to other types.
+        """
+        return Type.get(self, other)
 
     def __hash__(self):
         """
