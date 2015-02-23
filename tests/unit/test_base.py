@@ -163,7 +163,7 @@ class TestStacking(object):
         c = co * co_str
 
         assert isinstance(c, Consumer)
-        assert c.type_in() == co.type_in() * co_str.type_out()
+        assert c.type_in() == co.type_in() * co_str.type_in()
 
     def test_stackPipeConsumer(self, pi, co):
         p = pi * co
@@ -327,7 +327,23 @@ class TestStackPipe(_TestPipe):
     def max_amount(self):
         return 10   
 
+class TestStackProducer(_TestProducer):
+    @pytest.fixture
+    def producer(self, pr):
+        return pr * pr
 
+    @pytest.fixture
+    def max_amount(self):
+        return 10   
+
+class TestStackConsumer(_TestConsumer):
+    @pytest.fixture
+    def consumer(self, co):
+        return co * co
+
+    @pytest.fixture
+    def test_values(self):
+        return [(i,i) for i in range(0, 10)]
 
 ###############################################################################
 #
