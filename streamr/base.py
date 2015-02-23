@@ -169,6 +169,8 @@ class StreamProcess(object):
     with no dangling ends. It could be run.
     """
     def __init__(self, producer, consumer):
+        
+
         self.producer = producer
         self.consumer = consumer
 
@@ -217,7 +219,7 @@ def compose_stream_parts(left, right):
     elif isinstance(left, Producer) and isinstance(right, Pipe):
         return append_pipe(left, right)
     elif isinstance(left, Producer) and isinstance(right, Consumer):
-        return StreamProcess(left, right)
+        return stream_process(left, right)
     else:
         raise TypeError("Can't compose %s and %s" % (left, right))
 
@@ -243,6 +245,9 @@ def append_pipe(left, right):
         left = left.parts[0]
 
     return AppendPipe(left, right)
+
+def stream_process(left, right):
+    return StreamProcess(left, right)
 
 class ComposedStreamPart(object):
     """
@@ -302,8 +307,14 @@ class AppendPipe(ComposedStreamPart, Producer):
 
         super(AppendPipe, self).__init__(producer, pipe)
 
+        self.tout = self._infere_type_out(producer, pipe)
+
+    @staticmethod
+    def _infere_type_out(producer, pipe):
+        return pipe.type_arrow()(producer.type_out())
+
     def type_out(self):
-        return self.parts[1].type_out()
+        return self.tout
 
     def produce(self, env):
         upstream = self.parts[0].produce(env[0])
