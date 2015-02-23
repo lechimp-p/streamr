@@ -37,8 +37,6 @@ def other_inst():
     return Other()
 
 
-
-
 class TestPyTypes(object):
     def test_equality(self, base, sub):
         assert base == base
