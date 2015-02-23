@@ -175,10 +175,7 @@ class StreamProcess(object):
         p_env = self.producer.get_initial_env()
         c_env = self.consumer.get_initial_env()
 
-        producer_gen = self.producer.produce(p_env)
-
-        def upstream():
-            return producer_gen.__next__() 
+        upstream = self.producer.produce(p_env)
 
         try:
             return self.consumer.consume(upstream, c_env)
@@ -245,11 +242,9 @@ class FusePipe(ComposedStreamPart, Pipe):
     def type_out(self):
         return self.right.type_out()
 
-    def transform(self, env, upstream):
+    def transform(self, env, upstream_right):
         l, r = env 
-        producer_gen = self.left.transform(self, l, upstream)
-        def upstream_left():
-            return producer_gen.__next__()
+        upstream_left = self.left.transform(self, l, upstream_right)
         return self.right.transform(r, upstream_left)
     
 class AppendPipe(ComposedStreamPart, Producer):
@@ -261,9 +256,7 @@ class AppendPipe(ComposedStreamPart, Producer):
 
     def produce(self, env):
         l, r = env 
-        producer_gen = self.left.produce(l)
-        def upstream():
-            return producer_gen.__next__()
+        upstream = self.left.produce(l)
         return self.right.transform(r, upstream)
 
 class PrependPipe(ComposedStreamPart, Consumer):
@@ -273,9 +266,7 @@ class PrependPipe(ComposedStreamPart, Consumer):
     def type_in(self):
         return self.left.type_in()
 
-    def consume(self, env, upstream):
+    def consume(self, env, upstream_right):
         l, r = env
-        producer_gen = self.left.transform(l, upstream)
-        def upstream_left():
-            return producer_gen.__next__()
+        upstream_left = self.left.transform(l, upstream_right)
         return self.right.consume(r, upstream_left)
