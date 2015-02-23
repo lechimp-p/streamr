@@ -10,8 +10,72 @@ from streamr.types import Type
 #
 ###############################################################################
 
-def TestComposition():
-    pass
+class TestCompositionBase():
+    """
+    Test whether composition of different stream parts lead to the
+    expected results.
+    """
+
+    @pytest.fixture
+    def pr(self):
+        return MockProducer(int, 10)
+    
+    @pytest.fixture
+    def co(self):
+        return MockConsumer(int)
+
+    @pytest.fixture
+    def pi(self):
+        return MockPipe(int, int)
+
+    @pytest.fixture
+    def all_sps(self, pr, co, pi):
+        return [pr, co, pi]
+
+    # Objects from the classes need to respect the follwing rules, where abbreaviations
+    # for the names are used
+    #
+    # any >> Pr = error
+    def test_AnyCompPr(self, all_sps, pr):
+        for sp in all_sps:
+            with pytest.raises(TypeError) as excinfo:
+                sp >> pr
+
+    # Co >> any = error
+    def test_CoCompAny(self, all_sps, co):
+        for sp in all_sps:
+            with pytest.raises(TypeError) as excinfo:
+                co >> sp
+
+    # Pi >> Pi = Pi
+    def test_PiCompPi(self, pi):
+        assert isinstance(pi >> pi, Pipe)
+
+    # Pr >> Pi = Pr
+    def test_PrCompPi(self, pr, pi):
+        assert isinstance(pr >> pi, Producer)
+
+    # Pi >> Co = Co
+    def test_PiCompCo(self, pi, co):
+        assert isinstance(pi >> co, Consumer)
+
+    # Pr >> Co = SP
+    def test_PrCompCo(self, pr, co):
+        assert isinstance(pr >> co, StreamProcess)
+
+    # SP >> any = error
+    def test_SPCompAny(self, all_sps, pr, co):
+        spt = pr >> co
+        for sp in all_sps:
+            with pytest.raises(TypeError) as excinfo:
+                spt >> sp
+
+    # any >> SP = error
+    def test_SPCompAny(self, all_sps, pr, co):
+        spt = pr >> co
+        for sp in all_sps:
+            with pytest.raises(TypeError) as excinfo:
+                sp >> spt
 
 
 ###############################################################################
