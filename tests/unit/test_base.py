@@ -125,7 +125,7 @@ class TestCompositionTyped(object):
 
     def test_PrStrCompPiAny(self, pr_str, pi_any):
         pr = pr_str >> pi_any
-        assert pi_any.type_out() == Type.get(str)
+        assert pr.type_out() == Type.get(str)
 
     def test_PiAnyCompPiAny(self, pi_any, pi_any2):
         assert pi_any.type_out() != pi_any2.type_in()

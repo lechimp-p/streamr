@@ -30,6 +30,8 @@ Stream processes are consumer driven, that is, a consumer pulls data from
 upstream until he has enough data or there is no more data in the upstream.
 """
 
+from .types import ArrowType, ALL
+
 class StreamPart(object):
     """
     Common base class for the parts of a stream processing pipeline.
@@ -140,6 +142,12 @@ class Pipe(StreamPart):
         raise NotImplementedError("Pipe::type_out: implement "
                                   "me for class %s!" % type(self))
 
+    def type_arrow(self):
+        """
+        Get the type of the transformer as arrow type.
+        """
+        return ArrowType.get(self.type_in(), self.type_out())
+
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
@@ -203,70 +211,115 @@ def compose_stream_parts(left, right):
     Throws TypeErrors when parts can't be combined.
     """
     if isinstance(left, Pipe) and isinstance(right, Pipe):
-        return FusePipe(left, right)
+        return fuse_pipes(left, right)
     elif isinstance(left, Pipe) and isinstance(right, Consumer):
-        return PrependPipe(left, right)
+        return prepend_pipe(left, right)
     elif isinstance(left, Producer) and isinstance(right, Pipe):
-        return AppendPipe(left, right)
+        return append_pipe(left, right)
     elif isinstance(left, Producer) and isinstance(right, Consumer):
         return StreamProcess(left, right)
     else:
         raise TypeError("Can't compose %s and %s" % (left, right))
 
+def fuse_pipes(left, right):
+    pipes = [left] if not isinstance(left, FusePipe) else left.parts
+    if isinstance(right, FusePipe):
+        pipes += right.parts
+    else:
+        pipes.append(right)
+
+    return FusePipe(*pipes)
+
+def prepend_pipe(left, right):
+#    if isinstance(right, PrependPipe):
+#        left = left >> right.parts[0]
+
+    return PrependPipe(left, right)
+
+def append_pipe(left, right):
+#    if isinstance(left, AppendPipe):
+#        right = left.parts[1] >> right 
+
+    return AppendPipe(left, right)
 
 class ComposedStreamPart(object):
     """
     Mixin for all composed stream parts.
-    """
-    def __init__(self, left, right):
-        if left.type_out() != right.type_in():
-            raise TypeError("Can't compose %s and %s" % (left, right))
 
-        self.left = left
-        self.right = right
+    Handles initialisation and shutdown of the sub parts.
+    """
+    def __init__(self, *parts):
+        assert ALL(isinstance(p, StreamPart) for p in parts)
+
+        self.parts = parts 
  
     def get_initial_env(self):
-        return (self.left.get_initial_env(), self.right.get_initial_env())
+        return [part.get_initial_env() for part in self.parts]
     def shutdown_env(self, env):
-        l, r = env 
-        self.left.shutdown_env(l)
-        self.right.shutdown_env(r)   
+        [v[0].shutdown_env(v[1]) for v in zip(self.parts, env)] 
 
 class FusePipe(ComposedStreamPart, Pipe):
     """
     A pipe build from two other pipes.
     """
+    def __init__(self, *pipes):
+        assert len(pipes) >= 2
+
+        super(FusePipe, self).__init__(*pipes)
+
+        self.tin = pipes[0].type_in()
+        self.tout = self._infere_type_out(pipes)
+
+    @staticmethod
+    def _infere_type_out(pipes):
+        cur = pipes[0].type_arrow() 
+
+        for p in pipes[1:]:
+            cur = cur.compose_with(p.type_arrow()) 
+
+        return cur.r_type
+
     def type_in(self):
-        return self.left.type_in()
+        return self.tin
 
     def type_out(self):
-        return self.right.type_out()
+        return self.tout
 
-    def transform(self, env, upstream_right):
-        l, r = env 
-        upstream_left = self.left.transform(self, l, upstream_right)
-        return self.right.transform(r, upstream_left)
+    def transform(self, env, upstream):
+        for part, e in zip(self.parts, env):
+            upstream = part.transform(e, upstream)
+        return upstream
     
 class AppendPipe(ComposedStreamPart, Producer):
     """
     A producer build from another producer with an appended pipe.
     """
+    def __init__(self, producer, pipe):
+        assert isinstance(producer, Producer)
+        assert isinstance(pipe, Pipe)
+
+        super(AppendPipe, self).__init__(producer, pipe)
+
     def type_out(self):
-        return self.right.type_out()
+        return self.parts[1].type_out()
 
     def produce(self, env):
-        l, r = env 
-        upstream = self.left.produce(l)
-        return self.right.transform(r, upstream)
+        upstream = self.parts[0].produce(env[0])
+        return self.parts[1].transform(env[1], upstream)
 
 class PrependPipe(ComposedStreamPart, Consumer):
     """
     A consumer build from another consumer with a prepended pipe.
     """
+    def __init__(self, pipe, consumer):
+        assert isinstance(pipe, Pipe)
+        assert isinstance(consumer, Consumer)
+
+        super(PrependPipe, self).__init__(pipe, consumer)
+
     def type_in(self):
-        return self.left.type_in()
+        return self.parts[0].type_in()
 
     def consume(self, env, upstream_right):
-        l, r = env
-        upstream_left = self.left.transform(l, upstream_right)
-        return self.right.consume(r, upstream_left)
+        upstream_left = self.parts[0].transform(env[0], upstream_right)
+        return self.parts[1].consume(env[1], upstream_left)
