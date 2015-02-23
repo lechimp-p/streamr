@@ -227,7 +227,7 @@ class TypeVar(Type):
         return TypeVar()
 
     def __str__(self):
-        return str(id(self))[-2:-1]
+        return "#%s" % (str(id(self))[-3:-1])
 
 class TypeEngine(object):
     """
