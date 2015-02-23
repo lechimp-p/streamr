@@ -240,6 +240,14 @@ class TestArrowType(object):
         assert not (t1 == t2)
         assert t1 != t2
 
+    def test_composition(self, base, sub, other):
+        t1 = ArrowType.get(other, sub)
+        t2 = ArrowType.get(sub, base)
+        t3 = ArrowType.get(other, base)
+
+        assert t1.compose_with(t2) == t3
+        
+
 class TestTypeVar(object):
     def test_uniqueness(self, base):
         t1 = Type.get()

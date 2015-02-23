@@ -207,10 +207,23 @@ class ArrowType(Type):
         l_type = Type.get(l_type)
         r_type = Type.get(r_type)
 
+        print((l_type, r_type))
+
         if (l_type, r_type) not in ArrowType.cache:
+            print("is cached")
             ArrowType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
 
+        print("is not cached")
         return ArrowType.cache[(l_type, r_type)]
+
+    def compose_with(self, other):
+        """
+        Get the type of the composition of this arrow type with another arrow type.
+        """
+        if not isinstance(other, ArrowType):
+            raise TypeError("Expected arrow type, not '%s'" % other)
+
+        return ArrowType.get(self.l_type, other(self.r_type))
 
     def __str__(self):
         return "(%s -> %s)" % (self.l_type, self.r_type)
