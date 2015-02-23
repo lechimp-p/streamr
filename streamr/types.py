@@ -70,6 +70,12 @@ class Type(object):
         """
         return Type.engine.contains(self, value)
 
+    def is_variable(self):
+        """
+        Check whether type contains any variable part.
+        """
+        return Type.engine.is_variable(self)
+
     @staticmethod
     def get(*py_types):
         """
@@ -335,6 +341,30 @@ class TypeEngine(object):
             return ALL((_type.item_type.contains(v) for v in value))
 
         return False
+
+    is_variable_cache = {}
+
+    def is_variable(self, _type):
+        t = type(_type)
+
+        if _type not in TypeEngine.is_variable_cache:
+            if t == TypeVar:
+                is_variable = True
+            elif t == PyType:
+                is_variable = False
+            elif t == ListType:
+                is_variable = self.is_variable(_type.item_type)
+            elif t == ProductType:
+                is_variable = ANY(self.is_variable(i) for i in _type.types)
+            elif t == ArrowType:
+                is_variable = ( self.is_variable(t.l_type) 
+                                or self.is_variable(t.r_type) )
+            else:
+                raise TypeError("Can't tell if '%s' is variable" % _type)
+
+            TypeEngine.is_variable_cache[_type] = is_variable
+
+        return TypeEngine.is_variable_cache[_type]
         
         
 

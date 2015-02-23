@@ -258,6 +258,29 @@ class TestTypeVar(object):
         assert t2 == t2
         assert t2 != t1
 
+    def test_isVariable(self, base):
+        t1 = Type.get()
+        t2 = Type.get(base)
+        l1 = Type.get([t1])
+        l2 = Type.get([t2])
+        p1 = Type.get((t1,))
+        p2 = Type.get((t2,))
+        p3 = Type.get((t1,t2))
+        p4 = Type.get((t2,t1))
+        a1 = ArrowType.get(t1,t1)
+        a2 = ArrowType.get(t2,t2)
+        a3 = ArrowType.get(t1,t2)
+        a4 = ArrowType.get(t2,t1)
+
+        assert t1.is_variable()
+        assert not t2.is_variable()
+        assert l1.is_variable()
+        assert not l2.is_variable()
+        assert p1.is_variable()
+        assert not p2.is_variable()
+        assert p3.is_variable()
+        assert p4.is_variable()
+
 class TestApplicationType(object):
     def test_application1(self, base):
         fun = ArrowType.get(base, base)
@@ -277,6 +300,4 @@ class TestApplicationType(object):
         fun = ArrowType.get(var, (var, other))
         app = fun(base)
 
-        print("%s" % fun)
-        print("%s" % app)
         assert app == (base, other)
