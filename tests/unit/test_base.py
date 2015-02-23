@@ -203,7 +203,7 @@ class TestStacking(object):
 #
 ###############################################################################
 
-class _TestProducer():
+class _TestProducer(object):
     def test_isInstanceOfProducer(self, producer):
         assert isinstance(producer, Producer) 
 
@@ -224,7 +224,7 @@ class _TestProducer():
             if count > max_amount:
                 return 
 
-class _TestConsumer():
+class _TestConsumer(object):
     def test_isInstanceOfConsumer(self, consumer):
         assert isinstance(consumer, Consumer)
 
@@ -242,7 +242,7 @@ class _TestConsumer():
 
         consumer.consume(env, upstream())
 
-class _TestPipe():
+class _TestPipe(object):
     def test_isInstanceOfPipe(self, pipe):
         assert isinstance(pipe, Pipe)
 
@@ -269,6 +269,64 @@ class _TestPipe():
             count += 1
             if count > max_amount:
                 return
+
+
+###############################################################################
+#
+# Test of products of composition.
+#
+###############################################################################
+
+class TestAppendPipe(_TestProducer):
+    @pytest.fixture
+    def producer(self, pr, pi):
+        return pr >> pi
+
+    @pytest.fixture
+    def max_amount(self):
+        return 10   
+
+def TestPrependPipe(_TestConsumer):
+    @pytest.fixture
+    def consumer(self, pi, co):
+        return pi >> co
+
+    @pytest.fixture
+    def test_values(self):
+        return range(0, 10)
+
+class TestFusePipe(_TestPipe):
+    @pytest.fixture
+    def pipe(self, pi):
+        return pi >> pi
+
+    @pytest.fixture
+    def test_values(self):
+        return range(0, 10)
+
+    @pytest.fixture
+    def max_amount(self):
+        return 10   
+
+###############################################################################
+#
+# Test of products of stacking.
+#
+###############################################################################
+
+class TestStackPipe(_TestPipe):
+    @pytest.fixture
+    def pipe(self, pi):
+        return pi * pi
+
+    @pytest.fixture
+    def test_values(self):
+        return [(i,i) for i in range(0, 10)]
+
+    @pytest.fixture
+    def max_amount(self):
+        return 10   
+
 
 
 ###############################################################################

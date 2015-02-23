@@ -286,7 +286,7 @@ class FusePipe(ComposedStreamPart, Pipe):
         super(FusePipe, self).__init__(*pipes)
 
         self.tin = pipes[0].type_in()
-        self.tout = self._infere_type_out(pipes)
+        self.tout = FusePipe._infere_type_out(pipes)
 
     @staticmethod
     def _infere_type_out(pipes):
@@ -318,7 +318,7 @@ class AppendPipe(ComposedStreamPart, Producer):
 
         super(AppendPipe, self).__init__(producer, pipe)
 
-        self.tout = self._infere_type_out(producer, pipe)
+        self.tout = AppendPipe._infere_type_out(producer, pipe)
 
     @staticmethod
     def _infere_type_out(producer, pipe):
@@ -350,4 +350,30 @@ class PrependPipe(ComposedStreamPart, Consumer):
 
 
 def stack_stream_parts(top, bottom):
-    return None
+    if isinstance(top, Pipe) and isinstance(bottom, Pipe):
+        return stack_pipe(top, bottom)
+    
+    raise TypeError("Can't stack %s and %s" % (left, right))
+
+def stack_pipe(top, bottom):
+    return StackPipe(top, bottom)
+
+class StackPipe(ComposedStreamPart, Pipe):
+    """
+    Some pipes stacked onto each other.
+    """
+    def __init__(self, *pipes):
+        assert len(pipes) >= 2
+
+        super(StackPipe, self).__init__(*pipes)
+
+        self.tin = reduce(lambda x,y: x * y, (p.type_in() for p in pipes))
+        self.tout = reduce(lambda x,y: x * y, (p.type_out() for p in pipes))
+
+    def type_in(self):
+        return self.tin
+    def type_out(self):
+        return self.tout
+
+    def transform(self, env, upstream):
+        pass 
