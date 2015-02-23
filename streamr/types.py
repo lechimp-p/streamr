@@ -375,9 +375,6 @@ class TypeEngine(object):
         return TypeEngine.is_variable_cache[_type]
 
     def is_satisfied_by(self, _type, other):
-        if not _type.is_variable() and _type != other:
-            return False
-
         # Holds the replacements for type variables
         var_replacements = {}
 
@@ -397,8 +394,15 @@ class TypeEngine(object):
             return True
 
         def go(l,r):
+            if not l.is_variable() and l != r:
+                return False
+
+            if l == r:
+                return True
+
             tl = type(l)
             tr = type(r)
+
             if tl == TypeVar:
                 return check_replacement(l,r) 
 
