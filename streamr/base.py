@@ -50,6 +50,13 @@ class StreamPart(object):
         """
         return compose_stream_parts(other, self)
 
+    def __mul__(self, other):
+        """
+        Stack two stream parts onto each other to process them in
+        parallel.
+        """
+        return stack_stream_parts(self, other)
+
     def get_initial_env(self):
         """
         Should return a environment object that is used during one execution of 
@@ -340,3 +347,7 @@ class PrependPipe(ComposedStreamPart, Consumer):
     def consume(self, env, upstream_right):
         upstream_left = self.parts[0].transform(env[0], upstream_right)
         return self.parts[1].consume(env[1], upstream_left)
+
+
+def stack_stream_parts(top, bottom):
+    return None

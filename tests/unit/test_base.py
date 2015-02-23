@@ -145,6 +145,56 @@ class TestStreamProcessResults(object):
         assert sp.run() == [40]*10
 
 
+class TestStacking(object):
+    def test_stackProducers(self, pr, pr_str):
+        p = pr * pr_str
+
+        assert isinstance(p, Producer)
+        assert p.type_out() == pr.type_out() * pr_str.type_out() 
+
+    def test_stackPipes(self, pi, pi_any):
+        p = pi * pi_any
+
+        assert isinstance(p, Pipe)
+        assert p.type_in() == pi.type_in() * pi_any.type_in()
+        assert p.type_out() == pi.type_out() * pi_any.type_out()
+
+    def test_stackConsumers(self, co, co_str):
+        c = co * co_str
+
+        assert isinstance(c, Consumer)
+        assert c.type_in() == co.type_in() * co_str.type_out()
+
+    def test_stackPipeConsumer(self, pi, co):
+        p = pi * co
+
+        assert isinstance(p, Pipe)
+        assert p.type_in() == pi.type_in() * co.type_in()
+        assert p.type_out() == pi.type_out()
+
+    def test_stackProducerPipe(self, pr, pi):
+        p = pr * pi
+
+        assert isinstance(p, Pipe)
+        assert p.type_in() == pi.type_in()
+        assert p.type_out() == pr.type_out() * pi.type_in()
+
+    def test_result1(self, pr, pi, co):
+        sp = (pr * pr) >> (pi * pi) >> (co * co)
+
+        assert sp.run == ([20]*10, [20]*10)
+
+    def test_result2(self, pr, pi, co):
+        sp = (pr * pr) >> (pi * co) >> co
+
+        assert sp.run() == ([20]*10, [10]*10)
+
+    def test_result3(self, pr, pi, co):
+        sp = pr >> (pi * pr) >> (co * co)
+
+        assert sp.run() == ([20]*10, [10]*10)
+
+    
 
 
 ###############################################################################
