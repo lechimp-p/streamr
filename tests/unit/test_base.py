@@ -10,31 +10,30 @@ from streamr.types import Type
 #
 ###############################################################################
 
+@pytest.fixture
+def pr():
+    return MockProducer(int, 10)
+
+@pytest.fixture
+def co():
+    return MockConsumer(int, 10)
+
+@pytest.fixture
+def pi():
+    return MockPipe(int, int, lambda x: 2 * x)
+
+@pytest.fixture
+def all_sps(pr, co, pi):
+    return [pr, co, pi]
+
 class TestCompositionBase():
     """
     Test whether composition of different stream parts lead to the
     expected results.
+
+    Objects from the classes need to respect the follwing rules, 
+    where abbreaviations for the names are used.
     """
-
-    @pytest.fixture
-    def pr(self):
-        return MockProducer(int, 10)
-    
-    @pytest.fixture
-    def co(self):
-        return MockConsumer(int)
-
-    @pytest.fixture
-    def pi(self):
-        return MockPipe(int, int)
-
-    @pytest.fixture
-    def all_sps(self, pr, co, pi):
-        return [pr, co, pi]
-
-    # Objects from the classes need to respect the follwing rules, where abbreaviations
-    # for the names are used
-    #
     # any >> Pr = error
     def test_AnyCompPr(self, all_sps, pr):
         for sp in all_sps:
@@ -76,6 +75,19 @@ class TestCompositionBase():
         for sp in all_sps:
             with pytest.raises(TypeError) as excinfo:
                 sp >> spt
+
+class TestStreamProcessResults(object):
+    def test_PrCompCo(self, pr, co):
+        sp = pr >> co
+        assert sp.run() == [10 for i in range(0, 10)] 
+    def test_PrCompPiCompCo(self, pr, pi, co):
+        sp = pr >> pi >> co
+        assert sp.run() == [20 for i in range(0, 10)]
+    def test_PrCompPiCompPiCompCo(self, pr, pi, co):
+        sp = pr >> pi >> pi >> co
+        assert sp.run() == [40 for i in range(0, 10)]
+
+
 
 
 ###############################################################################
@@ -179,8 +191,9 @@ class TestMockProducer(_TestProducer):
         return 10
 
 class MockConsumer(Consumer):
-    def __init__(self, ttype):
+    def __init__(self, ttype, max_amount = None):
         self.ttype = Type.get(ttype)
+        self.max_amount = max_amount
     def type_in(self):
         return self.ttype
     def get_initial_env(self):
@@ -188,7 +201,13 @@ class MockConsumer(Consumer):
     def shutdown_env(self, env):
         pass
     def consume(self, env, upstream):
-        return [v for v in upstream]  
+        if self.max_amount is None:
+            return [v for v in upstream]  
+
+        ret = []
+        for i in range(0, self.max_amount):
+            ret.append(next(upstream))
+        return ret
 
 class TestMockConsumer(Consumer):
     @pytest.fixture
@@ -203,7 +222,7 @@ class MockPipe(Pipe):
     def __init__(self, type_in, type_out, transform = None):
         self.tin = Type.get(type_in)
         self.tout = Type.get(type_out)
-        self.trafo = lambda x : x if transform is None else transform
+        self.trafo = (lambda x : x) if transform is None else transform
     def type_in(self):
         return self.tin
     def type_out(self):

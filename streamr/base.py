@@ -178,7 +178,7 @@ class StreamProcess(object):
         upstream = self.producer.produce(p_env)
 
         try:
-            return self.consumer.consume(upstream, c_env)
+            return self.consumer.consume(c_env, upstream)
         finally:
             self.producer.shutdown_env(p_env)
             self.consumer.shutdown_env(c_env)
