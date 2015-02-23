@@ -231,14 +231,16 @@ def fuse_pipes(left, right):
     return FusePipe(*pipes)
 
 def prepend_pipe(left, right):
-#    if isinstance(right, PrependPipe):
-#        left = left >> right.parts[0]
+    if isinstance(right, PrependPipe):
+        left = left >> right.parts[0]
+        right = right.parts[1]
 
     return PrependPipe(left, right)
 
 def append_pipe(left, right):
-#    if isinstance(left, AppendPipe):
-#        right = left.parts[1] >> right 
+    if isinstance(left, AppendPipe):
+        right = left.parts[1] >> right 
+        left = left.parts[0]
 
     return AppendPipe(left, right)
 
