@@ -82,6 +82,9 @@ class Producer(StreamPart):
     def type_out(self):
         """
         Get the type of output this producer produces.
+
+        This can never be variable, since one should always know what a producer
+        produces as values.
         """
         raise NotImplementedError("Producer::type_out: implement "
                                   "me for class %s!" % type(self))

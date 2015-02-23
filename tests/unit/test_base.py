@@ -160,6 +160,9 @@ class _TestProducer():
     def test_typeOut(self, producer):
         assert isinstance(producer.type_out(), Type)
 
+    def test_typeOutIsNotVariable(self, producer):
+        assert not producer.type_out().is_variable()
+
     def test_typeOfProducedValues(self, producer, max_amount):
         env = producer.get_initial_env()
         t = producer.type_out()
