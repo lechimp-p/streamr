@@ -76,6 +76,14 @@ class Type(object):
         """
         return Type.engine.is_variable(self)
 
+    def is_satisfied_by(self, other):
+        """
+        Check whether this type is satisfied by another type by
+        substituting type vars in self with appropriate types to
+        get a type that matches other.
+        """
+        return Type.engine.is_satisfied_by(self, other)
+
     @staticmethod
     def get(*py_types):
         """
@@ -365,8 +373,50 @@ class TypeEngine(object):
             TypeEngine.is_variable_cache[_type] = is_variable
 
         return TypeEngine.is_variable_cache[_type]
+
+    def is_satisfied_by(self, _type, other):
+        if not _type.is_variable() and _type != other:
+            return False
+
+        # Holds the replacements for type variables
+        var_replacements = {}
+
+        def get_replacement(v):
+            if not v in var_replacements:
+                return None
+            r = var_replacements[v]
+            if isinstance(r, TypeVar):
+                return get_replacement(r)
+            return r
+
+        def check_replacement(v, l):
+            repl = get_replacement(v)
+            if repl is not None:
+                return repl <= l
+            var_replacements[v] = l
+            return True
+
+        def go(l,r):
+            tl = type(l)
+            tr = type(r)
+            if tl == TypeVar:
+                return check_replacement(l,r) 
+
+            if tl != tr:
+                return False
+
+            if tl == ListType:
+                return go(l.item_type, r.item_type)
+            if tl == PyType:
+                return issubclass(r.py_type, l.py_type)
+            if tl == ProductType:
+                return ALL(go(v[0],v[1]) for v in zip(l.types, r.types))
+            if tl == ArrowType:
+                return go(l.l_type, r.l_type) and go(l.r_type, r.r_type)
+            
+            raise TypeError("Can't check weather '%s' is satisfied." % tl) 
         
-        
+        return go(_type, other)
 
 Type.engine = TypeEngine()
 

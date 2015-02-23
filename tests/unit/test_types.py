@@ -281,6 +281,30 @@ class TestTypeVar(object):
         assert p3.is_variable()
         assert p4.is_variable()
 
+    def test_isSatisfiedBy(self, base, other):
+        v1 = Type.get()
+        v2 = Type.get()
+        bl = Type.get([base])
+        vl = Type.get([v1])
+        bp = Type.get(base, base)
+        vp = Type.get(v1, v1)
+        vp2 = Type.get(v1, v2)
+        
+        
+        assert v1.is_satisfied_by(base)
+        assert v1.is_satisfied_by(v2)
+        assert v1.is_satisfied_by(bl)
+        assert v1.is_satisfied_by(vl)
+        assert v1.is_satisfied_by(bp)
+        assert v1.is_satisfied_by(vp)
+        assert v1.is_satisfied_by(vp2)
+        assert vp.is_satisfied_by(bp)
+        assert vp2.is_satisfied_by(bp)
+        assert vl.is_satisfied_by(bl)
+        assert not vl.is_satisfied_by(bp)
+        assert not vp.is_satisfied_by(bl)
+
+
 class TestApplicationType(object):
     def test_application1(self, base):
         fun = ArrowType.get(base, base)
