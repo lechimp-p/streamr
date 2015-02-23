@@ -15,18 +15,48 @@ def pr():
     return MockProducer(int, 10)
 
 @pytest.fixture
+def pr_str():
+    return MockProducer(str, "Hello World!")
+
+@pytest.fixture
 def co():
     return MockConsumer(int, 10)
+
+@pytest.fixture
+def co_str():
+    return MockConsumer(str, 10)
+
+@pytest.fixture
+def co_any():
+    return MockConsumer(Type.get(), 10)
 
 @pytest.fixture
 def pi():
     return MockPipe(int, int, lambda x: 2 * x)
 
 @pytest.fixture
+def pi_int_str():
+    return MockPipe(int, str, lambda x: "%s" % x)
+
+@pytest.fixture
+def pi_str_int():
+    return MockPipe(str, int, len)
+
+@pytest.fixture
+def pi_any():
+    tvar = Type.get()
+    return MockPipe(tvar, tvar)
+
+@pytest.fixture
+def pi_any2():
+    tvar = Type.get()
+    return MockPipe(tvar, tvar)
+
+@pytest.fixture
 def all_sps(pr, co, pi):
     return [pr, co, pi]
 
-class TestCompositionBase():
+class TestCompositionBase(object):
     """
     Test whether composition of different stream parts lead to the
     expected results.
@@ -39,12 +69,14 @@ class TestCompositionBase():
         for sp in all_sps:
             with pytest.raises(TypeError) as excinfo:
                 sp >> pr
+            assert "compose" in str(excinfo.value)
 
     # Co >> any = error
     def test_CoCompAny(self, all_sps, co):
         for sp in all_sps:
             with pytest.raises(TypeError) as excinfo:
                 co >> sp
+            assert "compose" in str(excinfo.value)
 
     # Pi >> Pi = Pi
     def test_PiCompPi(self, pi):
@@ -66,8 +98,9 @@ class TestCompositionBase():
     def test_SPCompAny(self, all_sps, pr, co):
         spt = pr >> co
         for sp in all_sps:
-            with pytest.raises(TypeError) as excinfo:
+            with pytest.raises(TypeError)as excinfo:
                 spt >> sp
+            assert "compose" in str(excinfo.value)
 
     # any >> SP = error
     def test_SPCompAny(self, all_sps, pr, co):
@@ -75,17 +108,41 @@ class TestCompositionBase():
         for sp in all_sps:
             with pytest.raises(TypeError) as excinfo:
                 sp >> spt
+            assert "compose" in str(excinfo.value)
+
+class TestCompositionTyped(object):
+    def test_PrCompCoAny(self, pr, pr_str, co_any):
+        sp1 = pr >> co_any
+        assert sp1.run() == [10]*10
+
+        sp2 = pr_str >> co_any
+        assert sp2.run() == ["Hello World!"]*10
+
+    def test_PrStrCompCoInt(self, pr_str, co):
+        with pytest.raises(TypeError) as excinfo:
+            pr_str >> co
+        assert "compose" in str(excinfo.value)
+
+    def test_PrStrCompPiAny(self, pr_str, pi_any):
+        pr = pr_str >> pi_any
+        assert pi_any.type_out() == Type.get(str)
+
+    def test_PiAnyCompPiAny(self, pi_any, pi_any2):
+        assert pi_any.type_out() != pi_any2.type_in()
+        pi = pi_any >> pi_any2
+        assert pi.type_out() == pi.type_in()
+        
 
 class TestStreamProcessResults(object):
     def test_PrCompCo(self, pr, co):
         sp = pr >> co
-        assert sp.run() == [10 for i in range(0, 10)] 
+        assert sp.run() == [10]*10
     def test_PrCompPiCompCo(self, pr, pi, co):
         sp = pr >> pi >> co
-        assert sp.run() == [20 for i in range(0, 10)]
+        assert sp.run() == [20]*10
     def test_PrCompPiCompPiCompCo(self, pr, pi, co):
         sp = pr >> pi >> pi >> co
-        assert sp.run() == [40 for i in range(0, 10)]
+        assert sp.run() == [40]*10
 
 
 
