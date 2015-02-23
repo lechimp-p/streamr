@@ -22,7 +22,12 @@ parallel, without the different process interfering with each other.
 
 Producers use generators to produce their values.
 
-Consumers and Producers can use an environment to e.g. hold resources. 
+Consumers, Producers and Pipes can use an environment to e.g. hold resources. 
+Those resources are guaranteed being shutdown by passing them to a shutdown
+method after a stream process is run.
+
+Stream processes are consumer driven, that is, a consumer pulls data from
+upstream until he has enough data or there is no more data in the upstream.
 """
 
 class StreamPart(object):
@@ -81,8 +86,7 @@ class Producer(StreamPart):
 
     def produce(self, env):
         """
-        Generate new data to be send downstream. The result must solely be a
-        result from data in the env object. It must be threadsafe to call
+        Generate new data to be send downstream. It must be threadsafe to call
         produce. Produce must yield values with a type according to type_out.
         """
         raise NotImplementedError("Producer::produce: implement "
@@ -103,14 +107,13 @@ class Consumer(StreamPart):
         raise NotImplementedError("Consumer::type_in: implement "
                                   "me for class %s!" % type(self))
 
-    def consume(self, env, await):
+    def consume(self, env, upstream):
         """
         Consume data from upstream. It must be threadsafe to call consume. 
         Consume must be able to process values with types according to type_in. 
         Could return a result. 
 
-        await is a function that could be called to get the next value from
-        upstream.
+        upstream is a generator that yields values from upstream.
         """
         raise NotImplementedError("Consumer::consume: implement "
                                   "me for class %s!" % type(self))
@@ -140,12 +143,12 @@ class Pipe(StreamPart):
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
-    def transform(self, env, await):
+    def transform(self, env, upstream):
         """
         Take data from upstream and generate data for downstream. Must adhere to
         the types from type_in and type_out. Must be a generator.
         
-        await is a function that could be called to get the next value from
+        upstream is a function that could be called to get the next value from
         upstream.
         """
         raise NotImplementedError("Pipe::transform: implement "
@@ -174,11 +177,11 @@ class StreamProcess(object):
 
         producer_gen = self.producer.produce(p_env)
 
-        def await():
+        def upstream():
             return producer_gen.__next__() 
 
         try:
-            return self.consumer.consume(await, c_env)
+            return self.consumer.consume(upstream, c_env)
         finally:
             self.producer.shutdown_env(p_env)
             self.consumer.shutdown_env(c_env)
@@ -242,12 +245,12 @@ class FusePipe(ComposedStreamPart, Pipe):
     def type_out(self):
         return self.right.type_out()
 
-    def transform(self, env, await):
+    def transform(self, env, upstream):
         l, r = env 
-        producer_gen = self.left.transform(self, l, await)
-        def await_left():
+        producer_gen = self.left.transform(self, l, upstream)
+        def upstream_left():
             return producer_gen.__next__()
-        return self.right.transform(r, await_left)
+        return self.right.transform(r, upstream_left)
     
 class AppendPipe(ComposedStreamPart, Producer):
     """
@@ -259,9 +262,9 @@ class AppendPipe(ComposedStreamPart, Producer):
     def produce(self, env):
         l, r = env 
         producer_gen = self.left.produce(l)
-        def await():
+        def upstream():
             return producer_gen.__next__()
-        return self.right.transform(r, await)
+        return self.right.transform(r, upstream)
 
 class PrependPipe(ComposedStreamPart, Consumer):
     """
@@ -270,9 +273,9 @@ class PrependPipe(ComposedStreamPart, Consumer):
     def type_in(self):
         return self.left.type_in()
 
-    def consume(self, env, await):
+    def consume(self, env, upstream):
         l, r = env
-        producer_gen = self.left.transform(l, await)
-        def await_left():
+        producer_gen = self.left.transform(l, upstream)
+        def upstream_left():
             return producer_gen.__next__()
-        return self.right.consume(r, await_left)
+        return self.right.consume(r, upstream_left)
