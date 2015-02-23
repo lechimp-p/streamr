@@ -207,13 +207,9 @@ class ArrowType(Type):
         l_type = Type.get(l_type)
         r_type = Type.get(r_type)
 
-        print((l_type, r_type))
-
         if (l_type, r_type) not in ArrowType.cache:
-            print("is cached")
             ArrowType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
 
-        print("is not cached")
         return ArrowType.cache[(l_type, r_type)]
 
     def compose_with(self, other):
