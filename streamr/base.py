@@ -172,7 +172,8 @@ class StreamProcess(object):
     with no dangling ends. It could be run.
     """
     def __init__(self, producer, consumer):
-        
+        if not consumer.type_in().is_satisfied_by(producer.type_out()):
+            raise TypeError("Can't compose '%s' and '%s'" % (producer, consumer))
 
         self.producer = producer
         self.consumer = consumer
