@@ -396,6 +396,8 @@ class PrependPipe(ComposedStreamPart, Consumer):
 
         env["upstream_left"] = self.parts[0].transform(["envs"][0], pull_from_upstream())
 
+        return env
+
 
     def consume(self, env, upstream):
         # Set the upstream to the current one:
@@ -447,11 +449,11 @@ class StackPipe(ComposedStreamPart, Pipe):
 
     def transform(self, env, upstream):
         amount_chans = len(self.parts)
-        upstream_chans = _split_upstream(upstream, amount_chans)
+        upstream_chans,_ = _split_upstream([upstream], amount_chans)
 
         gens = []
-        for part, e, i in zip(self.parts, env["envs"], range(0, len(self.parts))):
-            gens.append(part.transform(e, upstream_chans[i]))
+        for part, e, us in zip(self.parts, env["envs"], upstream_chans):
+            gens.append(part.transform(e, us))
 
         while True:
             vals = []
@@ -488,7 +490,7 @@ class StackProducer(ComposedStreamPart, Producer):
 
 class StackConsumer(ComposedStreamPart, Consumer):
     """
-    Some consumers stacked onto each other.
+    Some consumers stacked onto each other. 
     """
     def __init__(self, *consumers):
         assert len(consumers) >= 2
@@ -500,16 +502,56 @@ class StackConsumer(ComposedStreamPart, Consumer):
     def type_in(self):
         return self.tin
 
-    def consume(self, env, upstream):
-        #amount_chans = len(self.parts)
-        #upstream_chans = _split_upstream(upstream, amount_chans)
-        return Stop(None)
+    def get_initial_env(self):
+        env = super(StackConsumer, self).get_initial_env()
 
+        # We use a similar trick than in PrependPipe here.
+        env["upstream"] = [None]
+        amount_chans = len(self.parts)
+        usc,_ = _split_upstream(env["upstream"], amount_chans)
+        env["upstream_chans"] = usc
+
+        return env
+
+    def consume(self, env, upstream):
+        """
+        Executes one step of every consumer for each step.
+        
+        If any consumer wants to stop it raises if any other consumer needs
+        to be resumed.
+        """
+        # Set the upstream to be used to the current upstream.
+        env["upstream"][0] = upstream
+
+        res = []
+        stop = False
+        must_resume = False
+        for c, e, us in zip(self.parts, env["envs"], env["upstream_chans"]):  
+            r = c.consume(e, us)
+            stop = stop or isinstance(r, Stop)
+            must_resume = must_resume or isinstance(r, Resume)
+            res.append(r.result)
+
+        if stop and must_resume:
+            raise RuntimeError("One consumer wants to stop, while another needs to resume.")
+
+        if must_resume:
+            return Resume()
+
+        if stop:
+            return Stop(tuple(res))
+
+        return MayResume(tuple(res))
 
 def _split_upstream(upstream, amount_chans):
     """
     Get a list of generators where the values from upstream are decomposed
     into amount_chans channels and values could be generated on every channel. 
+
+    The upstream argument should be a list with one element to be able to
+    exchange the upstream during execution.
+
+    Returns a list of new upstreams and the list of queues used.
     """
     # Use different queues for the values we get from upstream.
     # It must be possible to yield different amounts of value per
@@ -519,12 +561,12 @@ def _split_upstream(upstream, amount_chans):
     def upstream_chan(num):
         while True:
             if len(queues[num]) == 0:
-                new = next(upstream)
+                new = next(upstream[0])
                 for i in range(0, amount_chans):
                     queues[i].append(new[i])
                 
             yield queues[num].pop(0)
 
-    return [upstream_chan(i) for i in range(0, amount_chans)]
+    return [upstream_chan(i) for i in range(0, amount_chans)], queues
 
 
