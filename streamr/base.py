@@ -593,10 +593,6 @@ class MixedStreamPart(StreamPart):
     Can't be executed as is, just used during construction of stream processes.
     """
     def __init__(self, *parts):
-        pr, pi, co = MixedStreamPart._split_parts(parts)
-        self.producers = pr
-        self.pipes = pi
-        self.consumers = co
         self.parts = list(parts)
 
         self.tin = reduce( lambda x,y: x * y
@@ -607,17 +603,6 @@ class MixedStreamPart(StreamPart):
                           , (p.type_out() for p in
                             filter( lambda x: not isinstance(x, Consumer)
                                   , self.parts))) 
-
-    @staticmethod
-    def _split_parts(parts):
-        pr, pi, co = [], [], []
-
-        for part in parts:
-            pr.append(None if not isinstance(part, Producer) else part)
-            pi.append(None if not isinstance(part, Pipe) else part)
-            co.append(None if not isinstance(part, Consumer) else part)
-
-        return pr, pi, co
 
     def type_in(self):
         return self.tin
