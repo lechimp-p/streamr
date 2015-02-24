@@ -110,6 +110,17 @@ class Producer(StreamPart):
     def __str__(self):
         return "(() -> %s)" % self.type_out()
 
+class Resume(object):
+    pass
+
+class Stop(object):
+    def __init__(self, result):
+        self.result = result
+
+class MayResume(object):
+    def __init__(self, result):
+        self.result = result
+
 class Consumer(StreamPart):
     """
     A consumer is the sink for a stream, that is it consumes data from upstream
@@ -129,6 +140,16 @@ class Consumer(StreamPart):
         Could return a result. 
 
         upstream is a generator that yields values from upstream.
+
+        The method should not attempt to consume all values from upstream, since
+        we need it to support cooperative concurrency. It rather should consume
+        only the amount of values it needs for the next meaningful step.
+
+        Afterwards the consumer should either return Resume if it needs to be
+        resumed, or Stop if it can't be resumed or MayResume if it may be resumed.
+
+        If a StopIteration exception is thrown during execution of consume and
+        the last result of consume was MayResume, the last result is taken.
         """
         raise NotImplementedError("Consumer::consume: implement "
                                   "me for class %s!" % type(self))
@@ -201,8 +222,18 @@ class StreamProcess(object):
 
         upstream = self.producer.produce(p_env)
 
+        res = None
+
         try:
-            return self.consumer.consume(c_env, upstream)
+            while True:
+                res = self.consumer.consume(c_env, upstream)
+                if isinstance(res, Stop):
+                    return res.result 
+        except StopIteration:
+            if res is not None and isinstance(res, (Stop, MayResume)):
+                return res.result
+            raise RuntimeError("The producer ran out of values, but consumer "
+                               "wants to resume.")
         finally:
             self.producer.shutdown_env(p_env)
             self.consumer.shutdown_env(c_env)
@@ -281,9 +312,9 @@ class ComposedStreamPart(object):
         self.parts = parts 
  
     def get_initial_env(self):
-        return [part.get_initial_env() for part in self.parts]
+        return { "envs" : [part.get_initial_env() for part in self.parts] }
     def shutdown_env(self, env):
-        [v[0].shutdown_env(v[1]) for v in zip(self.parts, env)] 
+        [v[0].shutdown_env(v[1]) for v in zip(self.parts, env["envs"])] 
 
 class FusePipe(ComposedStreamPart, Pipe):
     """
@@ -313,7 +344,7 @@ class FusePipe(ComposedStreamPart, Pipe):
         return self.tout
 
     def transform(self, env, upstream):
-        for part, e in zip(self.parts, env):
+        for part, e in zip(self.parts, env["envs"]):
             upstream = part.transform(e, upstream)
         return upstream
     
@@ -337,8 +368,8 @@ class AppendPipe(ComposedStreamPart, Producer):
         return self.tout
 
     def produce(self, env):
-        upstream = self.parts[0].produce(env[0])
-        return self.parts[1].transform(env[1], upstream)
+        upstream = self.parts[0].produce(env["envs"][0])
+        return self.parts[1].transform(env["envs"][1], upstream)
 
 class PrependPipe(ComposedStreamPart, Consumer):
     """
@@ -353,9 +384,23 @@ class PrependPipe(ComposedStreamPart, Consumer):
     def type_in(self):
         return self.parts[0].type_in()
 
-    def consume(self, env, upstream_right):
-        upstream_left = self.parts[0].transform(env[0], upstream_right)
-        return self.parts[1].consume(env[1], upstream_left)
+    def get_initial_env(self):
+        env = super(PrependPipe, self).get_initial_env()
+
+        # Since we get a new upstream generator on every call
+        # to consume, we need to create a generator that yields
+        # values from the current upstream.
+        def pull_from_upstream():
+            while True:
+                yield next(env["upstream"])
+
+        env["upstream_left"] = self.parts[0].transform(["envs"][0], pull_from_upstream())
+
+
+    def consume(self, env, upstream):
+        # Set the upstream to the current one:
+        env["upstream"] = upstream
+        return self.parts[1].consume(env["envs"][1], env["upstream_left"])
 
 
 ###############################################################################
@@ -405,7 +450,7 @@ class StackPipe(ComposedStreamPart, Pipe):
         upstream_chans = _split_upstream(upstream, amount_chans)
 
         gens = []
-        for part, e, i in zip(self.parts, env, range(0, len(self.parts))):
+        for part, e, i in zip(self.parts, env["envs"], range(0, len(self.parts))):
             gens.append(part.transform(e, upstream_chans[i]))
 
         while True:
@@ -432,7 +477,7 @@ class StackProducer(ComposedStreamPart, Producer):
 
     def produce(self, env):
         gens = []
-        for part, e in zip(self.parts, env):
+        for part, e in zip(self.parts, env["envs"]):
             gens.append(part.produce(e))
 
         while True:
@@ -456,7 +501,10 @@ class StackConsumer(ComposedStreamPart, Consumer):
         return self.tin
 
     def consume(self, env, upstream):
-        pass
+        #amount_chans = len(self.parts)
+        #upstream_chans = _split_upstream(upstream, amount_chans)
+        return Stop(None)
+
 
 def _split_upstream(upstream, amount_chans):
     """

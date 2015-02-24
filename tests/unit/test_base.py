@@ -240,7 +240,17 @@ class _TestConsumer(object):
             assert t.contains(v)
             yield v
 
-        consumer.consume(env, upstream())
+        us = upstream()
+        
+        res = None
+        while True:
+            try:
+                res = consumer.consume(env, us)
+                if isinstance(res, Stop):
+                    return
+            except StopIteration:
+                assert isinstance(res, MayResume)
+                return
 
 class _TestPipe(object):
     def test_isInstanceOfPipe(self, pipe):
@@ -381,17 +391,19 @@ class MockConsumer(Consumer):
     def type_in(self):
         return self.ttype
     def get_initial_env(self):
-        return None 
+        return [] 
     def shutdown_env(self, env):
         pass
     def consume(self, env, upstream):
-        if self.max_amount is None:
-            return [v for v in upstream]  
+        try:
+            env.append(next(upstream))
+        except StopIteration:
+            return Stop(env)
 
-        ret = []
-        for i in range(0, self.max_amount):
-            ret.append(next(upstream))
-        return ret
+        if self.max_amount is not None and len(env) >= self.max_amount:
+            return Stop(env)
+
+        return MayResume(env)
 
 class TestMockConsumer(Consumer):
     @pytest.fixture
