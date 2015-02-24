@@ -168,14 +168,14 @@ class TestStacking(object):
     def test_stackPipeConsumer(self, pi, co):
         p = pi * co
 
-        assert isinstance(p, Pipe)
+        assert isinstance(p, MixedStreamPart)
         assert p.type_in() == pi.type_in() * co.type_in()
         assert p.type_out() == pi.type_out()
 
     def test_stackProducerPipe(self, pr, pi):
         p = pr * pi
 
-        assert isinstance(p, Pipe)
+        assert isinstance(p, MixedStreamPart)
         assert p.type_in() == pi.type_in()
         assert p.type_out() == pr.type_out() * pi.type_in()
 

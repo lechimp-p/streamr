@@ -263,6 +263,8 @@ def compose_stream_parts(left, right):
     
     Throws TypeErrors when parts can't be combined.
     """
+    if isinstance(left, MixedStreamPart) or isinstance(right, MixedStreamPart):
+        return compose_mixed_stream_parts(left, right)
     if isinstance(left, Pipe) and isinstance(right, Pipe):
         return fuse_pipes(left, right)
     elif isinstance(left, Pipe) and isinstance(right, Consumer):
@@ -423,6 +425,8 @@ def stack_stream_parts(top, bottom):
         return stack_producer(top, bottom)
     if isinstance(top, Consumer) and isinstance(bottom, Consumer):
         return stack_consumer(top, bottom)
+    if isinstance(top, StreamPart) or isinstance(bottom, StreamPart):
+        return stack_mixed(top, bottom)
     
     raise TypeError("Can't stack %s and %s" % (top, bottom))
 
@@ -472,19 +476,6 @@ class StackPipe(ComposedStreamPart, Pipe):
             for gen in gens:
                 vals.append(next(gen))
             yield tuple(vals) 
-
-class ClosedEndStackPipe(StackPipe):
-    """
-    A stacked pipe that contains closed ends, that is producer to the left
-    or consumers to the right. When transform is called, only the pipe part
-    will be executed.
-    To execute producers and consumers as well, one needs to compose this
-    pipe with more consumers or producers to close the dangling ends.
-    """
-    def __init__(self, pipes, producers, consumers):
-        super(ClosedEndStackPipe, self).__init__(*pipes)
-        self.producers = producers
-        self.consumers = consumers
 
 class StackProducer(ComposedStreamPart, Producer):
     """
@@ -595,3 +586,59 @@ def _split_upstream(upstream, amount_chans):
     return [upstream_chan(i) for i in range(0, amount_chans)], queues
 
 
+class MixedStreamPart(StreamPart):
+    """
+    A stacked stream part that contains producers, pipes and consumers as well.
+
+    Can't be executed as is, just used during construction of stream processes.
+    """
+    def __init__(self, *parts):
+        pr, pi, co = MixedStreamPart._split_parts(parts)
+        self.producers = pr
+        self.pipes = pi
+        self.consumers = co
+        self.parts = list(parts)
+
+        self.tin = reduce( lambda x,y: x * y
+                         , (p.type_in() for p in 
+                           filter( lambda x: not isinstance(x, Producer)
+                                 , self.parts)))
+        self.tout = reduce( lambda x,y: x * y
+                          , (p.type_out() for p in
+                            filter( lambda x: not isinstance(x, Consumer)
+                                  , self.parts))) 
+
+    @staticmethod
+    def _split_parts(parts):
+        pr, pi, co = [], [], []
+
+        for part in parts:
+            pr.append(None if not isinstance(part, Producer) else part)
+            pi.append(None if not isinstance(part, Pipe) else part)
+            co.append(None if not isinstance(part, Consumer) else part)
+
+        return pr, pi, co
+
+    def type_in(self):
+        return self.tin
+
+    def type_out(self):
+        return self.tout
+
+    def get_initial_env(self):
+        raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
+
+    def shutdown_env(self):
+        raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
+
+def stack_mixed(top, bottom):
+    parts = [top] if not isinstance(top, MixedStreamPart) else top.parts
+    if isinstance(bottom, MixedStreamPart):
+        parts += bottom.parts
+    else:
+        parts.append(bottom)
+
+    return MixedStreamPart(*parts)
+
+def compose_mixed_stream_parts(left, right):
+    pass
