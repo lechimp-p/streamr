@@ -182,7 +182,6 @@ class TestStacking(object):
     def test_result1(self, pr, pi, co):
         sp = (pr * pr) >> (pi * pi) >> (co * co)
 
-        #import pdb; pdb.set_trace()
         assert sp.run() == ([20]*10, [20]*10)
 
     def test_result2(self, pr, pi, co):
@@ -194,6 +193,12 @@ class TestStacking(object):
         sp = pr >> (pi * pr) >> (co * co)
 
         assert sp.run() == ([20]*10, [10]*10)
+
+    def test_result1(self, pr, pi, co):
+        sp = (pr * pr) >> (pi * pi) >> (pi * pi) >> (co * co)
+
+        assert sp.run() == ([40]*10, [40]*10)
+
 
     
 
