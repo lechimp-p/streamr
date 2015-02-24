@@ -275,6 +275,11 @@ def compose_stream_parts(left, right):
         raise TypeError("Can't compose %s and %s" % (left, right))
 
 def fuse_pipes(left, right):
+    # Compress the two stacked pipes to one stacked pipe by fusing its
+    # parts together.
+    if isinstance(left, StackPipe) and isinstance(right, StackPipe):
+        return fuse_stack_pipes(left, right)
+
     pipes = [left] if not isinstance(left, FusePipe) else left.parts
     if isinstance(right, FusePipe):
         pipes += right.parts
@@ -423,6 +428,13 @@ def stack_stream_parts(top, bottom):
 
 def stack_pipe(top, bottom):
     return StackPipe(top, bottom)
+
+def fuse_stack_pipes(left, right):
+    if not right.type_in().is_satisfied_by(left.type_out()):
+        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
+
+    fused = [l >> r for l, r in zip(left.parts, right.parts)]
+    return StackPipe(*fused)
 
 def stack_producer(top, bottom):
     return StackProducer(top, bottom)
