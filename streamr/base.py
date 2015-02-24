@@ -277,7 +277,7 @@ def compose_stream_parts(left, right):
 def fuse_pipes(left, right):
     # Compress the two stacked pipes to one stacked pipe by fusing its
     # parts together.
-    if isinstance(left, StackPipe) and isinstance(right, StackPipe):
+    if isinstance(left, StackPipe) or isinstance(right, StackPipe):
         return fuse_stack_pipes(left, right)
 
     pipes = [left] if not isinstance(left, FusePipe) else left.parts
@@ -472,6 +472,19 @@ class StackPipe(ComposedStreamPart, Pipe):
             for gen in gens:
                 vals.append(next(gen))
             yield tuple(vals) 
+
+class ClosedEndStackPipe(StackPipe):
+    """
+    A stacked pipe that contains closed ends, that is producer to the left
+    or consumers to the right. When transform is called, only the pipe part
+    will be executed.
+    To execute producers and consumers as well, one needs to compose this
+    pipe with more consumers or producers to close the dangling ends.
+    """
+    def __init__(self, pipes, producers, consumers):
+        super(ClosedEndStackPipe, self).__init__(*pipes)
+        self.producers = producers
+        self.consumers = consumers
 
 class StackProducer(ComposedStreamPart, Producer):
     """
