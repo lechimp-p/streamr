@@ -282,7 +282,7 @@ class _TestConsumer(object):
         t = consumer.type_in()
         gen = (i for i in test_values)
         def upstream():
-            v = gen.__next__()
+            v = next(gen)
             assert t.contains(v)
             yield v
 
@@ -314,7 +314,7 @@ class _TestPipe(object):
         tout = pipe.type_out()
         gen = (i for i in test_values)
         def upstream():
-            v = gen.__next__()
+            v = next(gen)
             assert tin.contains(v)
             yield v
         
