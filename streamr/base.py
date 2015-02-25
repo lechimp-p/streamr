@@ -337,9 +337,6 @@ class StreamProcess(StreamProcessor):
     with no dangling ends. It could be run.
     """
     def __init__(self, producer, consumer):
-        if not consumer.type_in().is_satisfied_by(producer.type_out()):
-            raise TypeError("Can't compose '%s' and '%s'" % (producer, consumer))
-
         self.producer = producer
         self.consumer = consumer
 
@@ -580,9 +577,6 @@ def stack_pipe(top, bottom):
     return StackPipe(*pipes)
 
 def fuse_stack_pipes(left, right):
-    if not right.type_in().is_satisfied_by(left.type_out()):
-        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
-
     fused = [l >> r for l, r in zip(left.parts, right.parts)]
     return StackPipe(*fused)
 
@@ -781,19 +775,6 @@ def stack_mixed(top, bottom):
     return MixedStreamProcessor(*parts)
 
 def compose_mixed_stream_parts(left, right):
-    if isinstance(left, Consumer) or isinstance(right, Producer):
-        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
-
-    if isinstance(left, MixedStreamProcessor) and left.type_out() is None:
-        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
-
-    if isinstance(right, MixedStreamProcessor) and right.type_in() is None:
-        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
-        
-    
-    if not right.type_in().is_satisfied_by(left.type_out()):
-        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
-
     if isinstance(left, StackProducer):
         return compose_stack_producer_mixed_stream(left, right)
     if isinstance(right, StackConsumer):
