@@ -36,6 +36,10 @@ def sub_inst():
 def other_inst():
     return Other()
 
+@pytest.fixture
+def unit():
+    return Type.get(None)
+
 
 class TestPyTypes(object):
     def test_equality(self, base, sub):
@@ -325,3 +329,19 @@ class TestApplicationType(object):
         app = fun(base)
 
         assert app == (base, other)
+
+class TestUnitType(object):
+    def test_hasCorrectClass(self, unit):
+        assert isinstance(unit, Type)    
+        assert isinstance(unit, UnitType)    
+
+    def test_containsNone(self, unit):
+        assert unit.contains(None)
+
+    def test_isIdForProduct(self, unit, base):
+        t1 = unit * base
+        t2 = unit * unit
+
+        assert t1 == base
+        assert t2 == unit 
+    

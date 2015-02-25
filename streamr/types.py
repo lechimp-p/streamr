@@ -114,6 +114,9 @@ class Type(object):
             if isinstance(py_type, tuple):
                 return ProductType.get(*py_type)
 
+            if py_type is None.__class__ or py_type is None:
+                return UnitType.get()
+
             return PyType.get(py_type)
 
         return ProductType.get(*py_types)
@@ -158,19 +161,25 @@ class ProductType(Type):
 
     @staticmethod
     def get(*types):
-        if len(types) == 1:
-            return Type.get(types[0])
-
         def flatten_product_types(types):
             res = []
             for t in types:
+                t = Type.get(t)
                 if isinstance(t, ProductType):
                     res += flatten_product_types(t.types)
+                elif isinstance(t, UnitType):
+                    pass
                 else:
-                    res.append(Type.get(t))
+                    res.append(t)
             return res
 
         types = tuple(flatten_product_types(types))
+
+        if len(types) == 0:
+            return UnitType.get()
+
+        if len(types) == 1:
+            return Type.get(types[0])
 
         if types not in ProductType.cache:
             ProductType.cache[types] = ProductType(*types)
@@ -257,6 +266,27 @@ class TypeVar(Type):
     def __str__(self):
         return "#%s" % (str(id(self))[-3:-1])
 
+class UnitType(Type):
+    """
+    Represents the unit type, that is the type that contains a single value.
+
+    It is identified with the NoneType, where the value is None.
+    """
+    def __init__(self):
+        pass
+
+    instance = None
+
+    @staticmethod
+    def get():
+        if UnitType.instance is None:
+            UnitType.instance = UnitType()
+
+        return UnitType.instance
+
+    def __str__(self):
+        return "()"
+
 class TypeEngine(object):
     """
     Engine that does type checking and inference.
@@ -342,6 +372,8 @@ class TypeEngine(object):
     def contains(self, _type, value):
         t = type(_type)
         
+        if t == UnitType:
+            return value is None
         if t == PyType:
             return isinstance(value, _type.py_type)
         if t == ProductType:
