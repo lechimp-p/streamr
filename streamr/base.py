@@ -194,6 +194,15 @@ class SimpleCompositionEngine(object):
     Could be switched for a more sophisticated engine, e.g. for performance purpose.
     """
     def compose_sequential(self, left, right):
+        not_composable = (  left.isConsumer()
+                         or right.isProducer()
+                         or left.isRunnable()
+                         or right.isRunnable()
+                         or not right.type_in().is_satisfied_by(left.type_out()))
+
+        if not_composable:
+            raise TypeError("Can't compose %s and %s." % (left, right))
+
         return compose_stream_parts(left, right)
 
     def compose_parallel(self, top, bottom):
