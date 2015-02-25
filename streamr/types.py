@@ -270,7 +270,8 @@ class UnitType(Type):
     """
     Represents the unit type, that is the type that contains a single value.
 
-    It is identified with the NoneType, where the value is None.
+    The value is identified with the empty tuple (), which makes it easy to use
+    the unit type with a *style parameter list.
     """
     def __init__(self):
         pass
@@ -286,6 +287,8 @@ class UnitType(Type):
 
     def __str__(self):
         return "()"
+
+unit = UnitType.get()
 
 class TypeEngine(object):
     """
@@ -373,7 +376,7 @@ class TypeEngine(object):
         t = type(_type)
         
         if t == UnitType:
-            return value is None
+            return value == () 
         if t == PyType:
             return isinstance(value, _type.py_type)
         if t == ProductType:

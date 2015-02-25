@@ -336,7 +336,7 @@ class TestUnitType(object):
         assert isinstance(unit, UnitType)    
 
     def test_containsNone(self, unit):
-        assert unit.contains(None)
+        assert unit.contains(tuple())
 
     def test_isIdForProduct(self, unit, base):
         t1 = unit * base
