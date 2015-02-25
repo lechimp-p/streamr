@@ -168,36 +168,36 @@ class TestStacking(object):
     def test_stackPipeConsumer(self, pi, co):
         p = pi * co
 
-        assert isinstance(p, MixedStreamPart)
+        assert isinstance(p, MixedStreamProcessor)
         assert p.type_in() == pi.type_in() * co.type_in()
         assert p.type_out() == pi.type_out()
 
     def test_stackProducerPipe(self, pr, pi):
         p = pr * pi
 
-        assert isinstance(p, MixedStreamPart)
+        assert isinstance(p, MixedStreamProcessor)
         assert p.type_in() == pi.type_in()
         assert p.type_out() == pr.type_out() * pi.type_in()
 
     def test_stackStackedProducerAndMixedStack1(self, pr, pi, co):
         p = (pr * pr) >> (pi * co)
 
-        assert isinstance(p, MixedStreamPart)
-        assert p.type_in() is None
+        assert isinstance(p, MixedStreamProcessor)
+        assert p.type_in() is Type.get(None)
         assert p.type_out() == pi.type_out()
 
     def test_stackStackedProducerAndMixedStack2(self, pr, pi, co):
         p = (pr * pr * pr) >> (pi * pi * co)
 
-        assert isinstance(p, MixedStreamPart)
-        assert p.type_in() is None
+        assert isinstance(p, MixedStreamProcessor)
+        assert p.type_in() is Type.get(None)
         assert p.type_out() == pi.type_out() * pi.type_out()
 
     def test_stackStackedProducerAndMixedStack3(self, pr, pi, co):
         p = (pr * pr * pr) >> (pi * pi * co) >> (pi * co)
 
-        assert isinstance(p, MixedStreamPart)
-        assert p.type_in() is None
+        assert isinstance(p, MixedStreamProcessor)
+        assert p.type_in() is Type.get(None)
         assert p.type_out() == pi.type_out()
 
     def test_result1(self, pr, pi, co):
@@ -260,7 +260,7 @@ class _TestProducer(object):
         assert not producer.type_out().is_variable()
 
     def test_typeOfProducedValues(self, producer, max_amount):
-        env = producer.get_initial_env()
+        env = producer.get_initial_env(None)
         t = producer.type_out()
         count = 0
         for var in producer.produce(env):
@@ -278,7 +278,7 @@ class _TestConsumer(object):
         assert isinstance(consumer.type_in(), Type)
 
     def test_consumesValuesOfType(self, consumer, test_values):
-        env = consumer.get_initial_env()
+        env = consumer.get_initial_env(None)
         t = consumer.type_in()
         gen = (i for i in test_values)
         def upstream():
@@ -309,7 +309,7 @@ class _TestPipe(object):
         assert isinstance(pipe.type_out(), Type)
 
     def test_transformsValuesAccordingToTypes(self, pipe, test_values, max_amount):
-        env = pipe.get_initial_env()
+        env = pipe.get_initial_env(None)
         tin = pipe.type_in()
         tout = pipe.type_out()
         gen = (i for i in test_values)
@@ -409,14 +409,8 @@ class TestStackConsumer(_TestConsumer):
 
 class MockProducer(Producer):
     def __init__(self, ttype, value):
-        self.ttype = Type.get(ttype)
+        super(MockProducer, self).__init__(None, ttype)
         self.value = value
-    def type_out(self):
-        return self.ttype
-    def get_initial_env(self):
-        return None
-    def shutdown_env(self, env):
-        pass
     def produce(self, env):
         while True:
             yield self.value
@@ -432,11 +426,9 @@ class TestMockProducer(_TestProducer):
 
 class MockConsumer(Consumer):
     def __init__(self, ttype, max_amount = None):
-        self.ttype = Type.get(ttype)
+        super(MockConsumer, self).__init__(None, [ttype], ttype)
         self.max_amount = max_amount
-    def type_in(self):
-        return self.ttype
-    def get_initial_env(self):
+    def get_initial_env(self, _):
         return [] 
     def shutdown_env(self, env):
         pass
@@ -462,17 +454,8 @@ class TestMockConsumer(Consumer):
 
 class MockPipe(Pipe):
     def __init__(self, type_in, type_out, transform = None):
-        self.tin = Type.get(type_in)
-        self.tout = Type.get(type_out)
+        super(MockPipe, self).__init__(None, type_in, type_out)
         self.trafo = (lambda x : x) if transform is None else transform
-    def type_in(self):
-        return self.tin
-    def type_out(self):
-        return self.tout
-    def get_initial_env(self):
-        return None 
-    def shutdown_env(self, env):
-        pass
     def transform(self, env, upstream):
         for var in upstream:
             yield self.trafo(var)

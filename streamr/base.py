@@ -33,82 +33,125 @@ upstream until he has enough data or there is no more data in the upstream.
 if "reduce" not in globals():
     from functools import reduce
 
-from .types import ArrowType, ALL
+from .types import Type, ArrowType, ALL
 
-class StreamPart(object):
+class StreamProcessor(object):
     """
-    Common base class for the parts of a stream processing pipeline.
+    A stream processor is the fundamental object to describe a stream process.
+
+    A stream processor must be initialized with a value of some type and generates
+    a return value of some other type. It can read values of a type from upstream 
+    and send values of another type downstream.
+
+    During initialisation, the stream processor must create an environment, that
+    could be used during the processing, e.g. to store resources. A stream 
+    processor must be able to handle multiple environments simultaniously. It is
+    guaranteed that the environment is passed to the shutdown method after the
+    processing.
+
+    Stream processors can be composed sequentially, that is, the downstream of the
+    first processor is fed as upstream to the second processor.
+    
+    Stream processor can also be composed in parallel, which results in a new
+    stream processor that uses the products of the types from its components as
+    up- and downstream.
     """
-    def __rshift__(self, other):
-        """
-        Compose two parts to get a new part.
+    def __init__(self, type_init, type_result, type_in, type_out):
+        self.tinit = Type.get(type_init)
+        self.tresult = Type.get(type_result)
+        self.tin = Type.get(type_in)
+        self.tout = Type.get(type_out)
 
-        __rshift__ is left biased, thus a >> b >> c = (a >> b) >> c
-        """
-        return compose_stream_parts(self, other)
+    def type_init(self):
+        return self.tinit
+    def type_result(self):
+        return self.tresult
+    def type_in(self):
+        return self.tin
+    def type_out(self):
+        return self.tout
 
-    def __lshift__ (self, other):
+    def type_arrow(self):
         """
-        Compose two part to get a new part.
+        Arrow type for the processed stream.
         """
-        return compose_stream_parts(other, self)
+        return ArrowType.get(self.type_in(), self.type_out())
 
-    def __mul__(self, other):
-        """
-        Stack two stream parts onto each other to process them in
-        parallel.
-        """
-        return stack_stream_parts(self, other)
+    def __str__(self):
+        return "[%s -> %s](%s)" % ( self.type_init(), self.type_result()
+                                  , self.type_arrow())
 
-    def get_initial_env(self):
+    def get_initial_env(self, params):
         """
-        Should return a environment object that is used during one execution of 
-        the stream part.
-
-        The environment object could e.g. be used to hold references to resources.
-
-        If a multithreaded environment is used, this also must be a synchronization
-        point between different threads.
+        Initialize a new runtime environment for the stream processor.
         """
-        raise NotImplementedError("StreamPart::get_initial_env: implement "
-                                  "me for class %s!" % type(self))
+        assert self.type_init().contains(params)
 
     def shutdown_env(self, env):
         """
-        Shut perform appropriate shutdown actions for the given environment. Will be
-        called after one execution of the pipeline with the used environment.
+        Shutdown a runtime environment of the processor.
+        """
+        pass
 
-        If a multithreaded environment is used, this also must be a synchronization
-        point between different threads.
+    def process(self, env, upstream, downstream):
         """
-        raise NotImplementedError("StreamPart::shutdown_env: implement "
-                                  "me for class %s!" % type(self))
-    
-class Producer(StreamPart):
-    """
-    A producer is the source for a stream, that is, it produces new data for
-    the downstream.
-    """
-    def type_out(self):
-        """
-        Get the type of output this producer produces.
+        Performs the actual processing. Gets an env that was created by
+        get_initial_env, a upstream generator object and a function that
+        sends data downstream.
 
-        This can never be variable, since one should always know what a producer
-        produces as values.
+        Must return Stop, MayResume oder Resume. If StopIteration is thrown
+        inside the body, that is interpreted as if the result from the last
+        invocation is the result. If there is no such result, that is interpreted
+        as Resume.
         """
-        raise NotImplementedError("Producer::type_out: implement "
-                                  "me for class %s!" % type(self))
+        raise NotImplementedError("Implement StreamProcessor.process for"
+                                  " class %s!" % type(self))
+        
+    # Engine used for composition
+    composition_engine = None
 
-    def produce(self, env):
+    def __rshift__(self, other):
         """
-        Generate new data to be send downstream. It must be threadsafe to call
-        produce. Produce must yield values with a type according to type_out.
-        """
-        raise NotImplementedError("Producer::produce: implement "
-                                  "me for class %s!" % type(self))
+        Sequential composition.
 
-    def __str__(self):
-        return "(() -> %s)" % self.type_out()
+        For two stream processors with types (init1, result1, a, b) and
+        (init2, result2, b, c), produces a new stream processor with the types
+        (init1 * init2, result1 * result2, a, c).
+
+        __rshift__ is left biased, thus a >> b >> c = (a >> b) >> c. Nonetheless
+        (a >> b) >> c =~ a >> (b >> c) should hold, where =~ means extensional
+        equality.
+        """
+        return StreamProcessor.composition_engine.compose_sequential(self, other)    
+
+    def __lshift__(self, other):
+        return StreamProcessor.composition_engine.compose_sequential(other, self)   
+
+    def __mul__(self, other):
+        """
+        Parallel composition.
+
+        For two stream processors with types (init1, result1, a1, b1) and
+        (init2, result2, a2, b2), produces a new stream processor with the types
+        (init1 * init2, result1 * result2, a1 * a2, b1 * b2).
+        """
+        return StreamProcessor.composition_engine.compose_parallel(self, other)   
+
+
+    # Some judgements about the stream processor
+
+    def isProducer(self):
+        """
+        This processor does not consume data from upstream.
+        """
+        return self.type_in() == Type.get(None)    
+
+    def isConsumer(self):
+        """
+        This processor does not send data downstream.
+        """
+        return self.type_out() == Type.get(None)
+
 
 class Resume(object):
     pass
@@ -121,17 +164,60 @@ class MayResume(object):
     def __init__(self, result):
         self.result = result
 
-class Consumer(StreamPart):
+
+class SimpleCompositionEngine(object):
+    """
+    Very simple engine to provide composition operations for stream processors.
+
+    Could be switched for a more sophisticated engine, e.g. for performance purpose.
+    """
+    def compose_sequential(self, left, right):
+        return compose_stream_parts(left, right)
+
+    def compose_parallel(self, top, bottom):
+        return stack_stream_parts(top, bottom)
+
+StreamProcessor.composition_engine = SimpleCompositionEngine()
+
+
+class EnvAndGen(object):
+    def __init__(self, env, gen):
+        self.env = env
+        self.gen = gen
+
+
+class Producer(StreamProcessor):
+    """
+    A producer is the source for a stream, that is, it produces new data for
+    the downstream without an upstrean and creates no result.
+    """
+    def __init__(self, type_init, type_out):
+        super(Producer, self).__init__(type_init, Type.get(None), Type.get(None), type_out)
+
+    def process(self, env, upstream, downstream):
+        if not isinstance(env, EnvAndGen):
+            env = EnvAndGen(env, self.produce(upstream))
+
+        downstream(next(env.gen))
+        return MayResume(None)
+
+    def produce(self, env):
+        """
+        Generate new data to be send downstream. It must be threadsafe to call
+        produce. Produce must yield values with a type according to type_out.
+        """
+        raise NotImplementedError("Producer::produce: implement "
+                                  "me for class %s!" % type(self))
+class Consumer(StreamProcessor):
     """
     A consumer is the sink for a stream, that is it consumes data from upstream
-    without producing new values.
+    without producing new values. It also returns a result.
     """
-    def type_in(self):
-        """
-        Get the type, this consumer consumes.
-        """
-        raise NotImplementedError("Consumer::type_in: implement "
-                                  "me for class %s!" % type(self))
+    def __init__(self, type_init, type_result, type_in):
+        super(Consumer, self).__init__(type_init, type_result, type_in, Type.get(None))
+
+    def process(self, env, upstream, downstream):
+        return self.consume(env, upstream)
 
     def consume(self, env, upstream):
         """
@@ -154,36 +240,24 @@ class Consumer(StreamPart):
         raise NotImplementedError("Consumer::consume: implement "
                                   "me for class %s!" % type(self))
 
-    def __str__(self):
-        return "(%s -> ())" % self.type_in()
-
-class Pipe(StreamPart):
+class Pipe(StreamProcessor):
     """
     A pipe is an element between a source and a sink, that is it consumes data
-    from upstream an produces new data for downstream.
+    from upstream an produces new data for downstream. It does not produce a
+    result.
     """ 
-    def type_in(self):
-        """
-        Get the type that transformer wants from upstream.
-        """
-        raise NotImplementedError("Pipe::type_in: implement "
-                                  "me for class %s!" % type(self))
-
-    def type_out(self):
-        """
-        Get the type the transformer sends downstream.
-        """
-        raise NotImplementedError("Pipe::type_out: implement "
-                                  "me for class %s!" % type(self))
-
-    def type_arrow(self):
-        """
-        Get the type of the transformer as arrow type.
-        """
-        return ArrowType.get(self.type_in(), self.type_out())
+    def __init__(self, type_init, type_in, type_out):
+        super(Pipe, self).__init__(type_init, Type.get(None), type_in, type_out)
 
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
+
+    def process(self, env, upstream, downstream):
+        if not isinstance(env, EnvAndGen):
+            env = EnvAndGen(env, self.transform(upstream))
+
+        downstream(next(env.gen))
+        return MayResume(None)        
 
     def transform(self, env, upstream):
         """
@@ -196,8 +270,7 @@ class Pipe(StreamPart):
         raise NotImplementedError("Pipe::transform: implement "
                                   "me for class %s!" % type(self))
         
-
-class StreamProcess(object):
+class StreamProcess(StreamProcessor):
     """
     A stream process is a completely defined process between sources and sinks
     with no dangling ends. It could be run.
@@ -209,6 +282,10 @@ class StreamProcess(object):
         self.producer = producer
         self.consumer = consumer
 
+        tinit = producer.type_init() * consumer.type_init()
+        super(StreamProcess, self).__init__( tinit, consumer.type_result()
+                                           , Type.get(None), Type.get(None) )  
+
     def run(self):
         """
         Let this stream process run.
@@ -217,8 +294,8 @@ class StreamProcess(object):
         execution models for the same stream, it is very likely that this method
         will exchanged by various interpreter-like runners.
         """
-        p_env = self.producer.get_initial_env()
-        c_env = self.consumer.get_initial_env()
+        p_env = self.producer.get_initial_env(None)
+        c_env = self.consumer.get_initial_env(None)
 
         upstream = self.producer.produce(p_env)
 
@@ -263,7 +340,7 @@ def compose_stream_parts(left, right):
     
     Throws TypeErrors when parts can't be combined.
     """
-    if isinstance(left, MixedStreamPart) or isinstance(right, MixedStreamPart):
+    if isinstance(left, MixedStreamProcessor) or isinstance(right, MixedStreamProcessor):
         return compose_mixed_stream_parts(left, right)
     if isinstance(left, Pipe) and isinstance(right, Pipe):
         return fuse_pipes(left, right)
@@ -307,33 +384,36 @@ def append_pipe(left, right):
 def stream_process(left, right):
     return StreamProcess(left, right)
 
-class ComposedStreamPart(object):
+class ComposedStreamProcessor(object):
     """
     Mixin for all composed stream parts.
 
     Handles initialisation and shutdown of the sub parts.
     """
-    def __init__(self, *parts):
-        assert ALL(isinstance(p, StreamPart) for p in parts)
+    def __init__(self, types, *parts):
+        assert ALL(isinstance(p, StreamProcessor) for p in parts)
+
+        if types is not None:
+            super(ComposedStreamProcessor, self).__init__(*types)
 
         self.parts = list(parts)
  
-    def get_initial_env(self):
-        return { "envs" : [part.get_initial_env() for part in self.parts] }
+    def get_initial_env(self, _):
+        return { "envs" : [part.get_initial_env(None) for part in self.parts] }
     def shutdown_env(self, env):
         [v[0].shutdown_env(v[1]) for v in zip(self.parts, env["envs"])] 
 
-class FusePipe(ComposedStreamPart, Pipe):
+class FusePipe(ComposedStreamProcessor, Pipe):
     """
     A pipe build from two other pipes.
     """
     def __init__(self, *pipes):
         assert len(pipes) >= 2
 
-        super(FusePipe, self).__init__(*pipes)
-
-        self.tin = pipes[0].type_in()
-        self.tout = FusePipe._infere_type_out(pipes)
+        tout = FusePipe._infere_type_out(pipes)
+        super(FusePipe, self).__init__( ( pipes[0].type_init() * pipes[1].type_init()
+                                        , pipes[0].type_in(), tout )
+                                      , *pipes)
 
     @staticmethod
     def _infere_type_out(pipes):
@@ -344,18 +424,12 @@ class FusePipe(ComposedStreamPart, Pipe):
 
         return cur.r_type
 
-    def type_in(self):
-        return self.tin
-
-    def type_out(self):
-        return self.tout
-
     def transform(self, env, upstream):
         for part, e in zip(self.parts, env["envs"]):
             upstream = part.transform(e, upstream)
         return upstream
     
-class AppendPipe(ComposedStreamPart, Producer):
+class AppendPipe(ComposedStreamProcessor, Producer):
     """
     A producer build from another producer with an appended pipe.
     """
@@ -363,22 +437,21 @@ class AppendPipe(ComposedStreamPart, Producer):
         assert isinstance(producer, Producer)
         assert isinstance(pipe, Pipe)
 
-        super(AppendPipe, self).__init__(producer, pipe)
+        tout = AppendPipe._infere_type_out(producer, pipe)
+        super(AppendPipe, self).__init__( ( producer.type_init() * pipe.type_init()
+                                          , tout )
+                                        , producer, pipe)
 
-        self.tout = AppendPipe._infere_type_out(producer, pipe)
 
     @staticmethod
     def _infere_type_out(producer, pipe):
         return pipe.type_arrow()(producer.type_out())
 
-    def type_out(self):
-        return self.tout
-
     def produce(self, env):
         upstream = self.parts[0].produce(env["envs"][0])
         return self.parts[1].transform(env["envs"][1], upstream)
 
-class PrependPipe(ComposedStreamPart, Consumer):
+class PrependPipe(ComposedStreamProcessor, Consumer):
     """
     A consumer build from another consumer with a prepended pipe.
     """
@@ -386,13 +459,15 @@ class PrependPipe(ComposedStreamPart, Consumer):
         assert isinstance(pipe, Pipe)
         assert isinstance(consumer, Consumer)
 
-        super(PrependPipe, self).__init__(pipe, consumer)
+        super(PrependPipe, self).__init__( ( pipe.type_init() * consumer.type_init()
+                                           , consumer.type_result(), pipe.type_in() )
+                                         , pipe, consumer)
 
     def type_in(self):
         return self.parts[0].type_in()
 
-    def get_initial_env(self):
-        env = super(PrependPipe, self).get_initial_env()
+    def get_initial_env(self, _):
+        env = super(PrependPipe, self).get_initial_env(None)
 
         # Since we get a new upstream generator on every call
         # to consume, we need to create a generator that yields
@@ -425,7 +500,7 @@ def stack_stream_parts(top, bottom):
         return stack_producer(top, bottom)
     if isinstance(top, Consumer) and isinstance(bottom, Consumer):
         return stack_consumer(top, bottom)
-    if isinstance(top, StreamPart) or isinstance(bottom, StreamPart):
+    if isinstance(top, StreamProcessor) or isinstance(bottom, StreamProcessor):
         return stack_mixed(top, bottom)
     
     raise TypeError("Can't stack %s and %s" % (top, bottom))
@@ -463,22 +538,18 @@ def stack_consumer(top, bottom):
 
     return StackConsumer(*consumers)
 
-class StackPipe(ComposedStreamPart, Pipe):
+class StackPipe(ComposedStreamProcessor, Pipe):
     """
     Some pipes stacked onto each other.
     """
     def __init__(self, *pipes):
         assert len(pipes) >= 2
 
-        super(StackPipe, self).__init__(*pipes)
+        tinit = reduce(lambda x,y: x * y, (p.type_init() for p in pipes))
+        tin = reduce(lambda x,y: x * y, (p.type_in() for p in pipes))
+        tout = reduce(lambda x,y: x * y, (p.type_out() for p in pipes))
 
-        self.tin = reduce(lambda x,y: x * y, (p.type_in() for p in pipes))
-        self.tout = reduce(lambda x,y: x * y, (p.type_out() for p in pipes))
-
-    def type_in(self):
-        return self.tin
-    def type_out(self):
-        return self.tout
+        super(StackPipe, self).__init__( (tinit, tin, tout), *pipes)
 
     def transform(self, env, upstream):
         amount_chans = len(self.parts)
@@ -494,7 +565,7 @@ class StackPipe(ComposedStreamPart, Pipe):
                 vals.append(next(gen))
             yield tuple(vals) 
 
-class StackProducer(ComposedStreamPart, Producer):
+class StackProducer(ComposedStreamProcessor, Producer):
     """
     Some producers stacked onto each other.
 
@@ -503,12 +574,9 @@ class StackProducer(ComposedStreamPart, Producer):
     def __init__(self, *producers):
         assert len(producers) >= 2
 
-        super(StackProducer, self).__init__(*producers)
-
-        self.tout = reduce(lambda x,y: x * y, (p.type_out() for p in producers))
-
-    def type_out(self):
-        return self.tout
+        tinit = reduce(lambda x,y: x * y, (p.type_init() for p in producers))
+        tout = reduce(lambda x,y: x * y, (p.type_out() for p in producers))
+        super(StackProducer, self).__init__( (tinit, tout), *producers)
 
     def produce(self, env):
         gens = []
@@ -521,22 +589,20 @@ class StackProducer(ComposedStreamPart, Producer):
                 vals.append(next(gen))
             yield tuple(vals)
 
-class StackConsumer(ComposedStreamPart, Consumer):
+class StackConsumer(ComposedStreamProcessor, Consumer):
     """
     Some consumers stacked onto each other. 
     """
     def __init__(self, *consumers):
         assert len(consumers) >= 2
 
-        super(StackConsumer, self).__init__(*consumers)
+        tinit = reduce(lambda x,y: x * y, (c.type_init() for c in consumers))
+        tresult = reduce(lambda x,y: x * y, (c.type_result() for c in consumers))
+        tin = reduce(lambda x,y: x * y, (c.type_in() for c in consumers))
+        super(StackConsumer, self).__init__( (tinit, tresult, tin), *consumers)
 
-        self.tin = reduce(lambda x,y: x * y, (c.type_in() for c in consumers))
-
-    def type_in(self):
-        return self.tin
-
-    def get_initial_env(self):
-        env = super(StackConsumer, self).get_initial_env()
+    def get_initial_env(self, _):
+        env = super(StackConsumer, self).get_initial_env(None)
 
         # We use a similar trick than in PrependPipe here.
         env["upstream"] = [None]
@@ -603,7 +669,7 @@ def _split_upstream(upstream, amount_chans):
     return [upstream_chan(i) for i in range(0, amount_chans)], queues
 
 
-class MixedStreamPart(StreamPart):
+class MixedStreamProcessor(StreamProcessor):
     """
     A stacked stream part that contains producers, pipes and consumers as well.
 
@@ -615,53 +681,48 @@ class MixedStreamPart(StreamPart):
         consumers = list(filter( lambda x: not isinstance(x, (Producer, StreamProcess))
                           , self.parts))
         if len(consumers) > 0:
-            self.tin = reduce( lambda x,y: x * y
+            tin = reduce( lambda x,y: x * y
                              , (p.type_in() for p in consumers))
         else:
-            self.tin = None
+            tin = None
 
         producers = list(filter( lambda x: not isinstance(x, (Consumer, StreamProcess))
                           , self.parts))
         if len(producers) > 0:
-            self.tout = reduce( lambda x,y: x * y
+            tout = reduce( lambda x,y: x * y
                               , (p.type_out() for p in producers))
         else:
-            self.tout = None 
+            tout = None 
 
-    def type_in(self):
-        return self.tin
+        tinit = reduce(lambda x,y: x * y, (p.type_init() for p in parts))
+        tresult = reduce(lambda x,y: x * y, (p.type_result() for p in parts))
 
-    def type_out(self):
-        return self.tout
+        super(MixedStreamProcessor, self).__init__(tinit, tresult, tin, tout)
 
-    def __str__(self):
-        return "(%s -> %s)" % ( "()" if self.tin is None else self.tin
-                              , "()" if self.tout is None else self.tout)
-
-    def get_initial_env(self):
+    def get_initial_env(self, _):
         raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
 
     def shutdown_env(self, env):
         raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
 
 def stack_mixed(top, bottom):
-    stacked_classes = MixedStreamPart, StackProducer, StackConsumer, StackPipe
+    stacked_classes = MixedStreamProcessor, StackProducer, StackConsumer, StackPipe
     parts = [top] if not isinstance(top, stacked_classes) else top.parts
     if isinstance(bottom, stacked_classes):
         parts += bottom.parts
     else:
         parts.append(bottom)
 
-    return MixedStreamPart(*parts)
+    return MixedStreamProcessor(*parts)
 
 def compose_mixed_stream_parts(left, right):
     if isinstance(left, Consumer) or isinstance(right, Producer):
         raise TypeError("Can't compose '%s' and '%s'" % (left, right))
 
-    if isinstance(left, MixedStreamPart) and left.type_out() is None:
+    if isinstance(left, MixedStreamProcessor) and left.type_out() is None:
         raise TypeError("Can't compose '%s' and '%s'" % (left, right))
 
-    if isinstance(right, MixedStreamPart) and right.type_in() is None:
+    if isinstance(right, MixedStreamProcessor) and right.type_in() is None:
         raise TypeError("Can't compose '%s' and '%s'" % (left, right))
         
     
@@ -672,11 +733,11 @@ def compose_mixed_stream_parts(left, right):
         return compose_stack_producer_mixed_stream(left, right)
     if isinstance(right, StackConsumer):
         return compose_mixed_stream_stacked_consumer(left, right)
-    if isinstance(left, MixedStreamPart):
-        if isinstance(right, MixedStreamPart):
+    if isinstance(left, MixedStreamProcessor):
+        if isinstance(right, MixedStreamProcessor):
             return compose_two_mixed_streams(left, right)
         return compose_mixed_stream_consumer(left, right)
-    if isinstance(right, MixedStreamPart):
+    if isinstance(right, MixedStreamProcessor):
         return compose_producer_mixed_stream(left, right)
 
     raise TypeError("Can't compose '%s' and '%s'" % (left, right))
@@ -820,7 +881,7 @@ def _stack_stream_parts(parts):
     if all_consumers:
         return StackConsumer(*parts)
 
-    return MixedStreamPart(*parts)
+    return MixedStreamProcessor(*parts)
     
         
 
