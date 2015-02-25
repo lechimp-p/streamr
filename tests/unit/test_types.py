@@ -38,7 +38,7 @@ def other_inst():
 
 @pytest.fixture
 def unit():
-    return Type.get(None)
+    return Type.get(())
 
 
 class TestPyTypes(object):
