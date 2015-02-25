@@ -179,6 +179,27 @@ class TestStacking(object):
         assert p.type_in() == pi.type_in()
         assert p.type_out() == pr.type_out() * pi.type_in()
 
+    def test_stackStackedProducerAndMixedStack1(self, pr, pi, co):
+        p = (pr * pr) >> (pi * co)
+
+        assert isinstance(p, MixedStreamPart)
+        assert p.type_in() is None
+        assert p.type_out() == pi.type_out()
+
+    def test_stackStackedProducerAndMixedStack2(self, pr, pi, co):
+        p = (pr * pr * pr) >> (pi * pi * co)
+
+        assert isinstance(p, MixedStreamPart)
+        assert p.type_in() is None
+        assert p.type_out() == pi.type_out() * pi.type_out()
+
+    def test_stackStackedProducerAndMixedStack3(self, pr, pi, co):
+        p = (pr * pr * pr) >> (pi * pi * co) >> (pi * co)
+
+        assert isinstance(p, MixedStreamPart)
+        assert p.type_in() is None
+        assert p.type_out() == pi.type_out()
+
     def test_result1(self, pr, pi, co):
         sp = (pr * pr) >> (pi * pi) >> (co * co)
         assert sp.run() == ([20]*10, [20]*10)
@@ -212,7 +233,7 @@ class TestStacking(object):
         assert sp.run() == ([10]*10, [20]*10, [40]*10)
 
     def test_result9(self, pr, pi, co):
-        sp = pr >> (pr * pi * pr) >> (pi * co * pi) >> co
+        sp = pr >> (pr * pi * pr) >> (pi * co * pi) >> (co * co)
 
         assert sp.run() == ([20]*10, [20]*10, [20]*10)
 
