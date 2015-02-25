@@ -316,7 +316,7 @@ class ComposedStreamPart(object):
     def __init__(self, *parts):
         assert ALL(isinstance(p, StreamPart) for p in parts)
 
-        self.parts = parts 
+        self.parts = list(parts)
  
     def get_initial_env(self):
         return { "envs" : [part.get_initial_env() for part in self.parts] }
@@ -431,7 +431,13 @@ def stack_stream_parts(top, bottom):
     raise TypeError("Can't stack %s and %s" % (top, bottom))
 
 def stack_pipe(top, bottom):
-    return StackPipe(top, bottom)
+    pipes = [top] if not isinstance(top, StackPipe) else top.parts
+    if isinstance(bottom, StackPipe):
+        pipes += bottom.parts
+    else:
+        pipes.append(bottom)
+
+    return StackPipe(*pipes)
 
 def fuse_stack_pipes(left, right):
     if not right.type_in().is_satisfied_by(left.type_out()):
@@ -441,10 +447,21 @@ def fuse_stack_pipes(left, right):
     return StackPipe(*fused)
 
 def stack_producer(top, bottom):
-    return StackProducer(top, bottom)
+    producers = [top] if not isinstance(top, StackProducer) else top.parts
+    if isinstance(bottom, StackProducer):
+        producers += bottom.parts
+    else:
+        producers.append(bottom)
+    return StackProducer(*producers)
 
 def stack_consumer(top, bottom):
-    return StackConsumer(top, bottom)
+    consumers = [top] if not isinstance(top, StackConsumer) else top.parts
+    if isinstance(bottom, StackConsumer):
+        consumers += bottom.parts
+    else:
+        consumers.append(bottom)
+
+    return StackConsumer(*consumers)
 
 class StackPipe(ComposedStreamPart, Pipe):
     """
@@ -595,20 +612,31 @@ class MixedStreamPart(StreamPart):
     def __init__(self, *parts):
         self.parts = list(parts)
 
-        self.tin = reduce( lambda x,y: x * y
-                         , (p.type_in() for p in 
-                           filter( lambda x: not isinstance(x, Producer)
-                                 , self.parts)))
-        self.tout = reduce( lambda x,y: x * y
-                          , (p.type_out() for p in
-                            filter( lambda x: not isinstance(x, Consumer)
-                                  , self.parts))) 
+        consumers = list(filter( lambda x: not isinstance(x, (Producer, StreamProcess))
+                          , self.parts))
+        if len(consumers) > 0:
+            self.tin = reduce( lambda x,y: x * y
+                             , (p.type_in() for p in consumers))
+        else:
+            self.tin = None
+
+        producers = list(filter( lambda x: not isinstance(x, (Consumer, StreamProcess))
+                          , self.parts))
+        if len(producers) > 0:
+            self.tout = reduce( lambda x,y: x * y
+                              , (p.type_out() for p in producers))
+        else:
+            self.tout = None 
 
     def type_in(self):
         return self.tin
 
     def type_out(self):
         return self.tout
+
+    def __str__(self):
+        return "(%s -> %s)" % ( "()" if self.tin is None else self.tin
+                              , "()" if self.tout is None else self.tout)
 
     def get_initial_env(self):
         raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
@@ -617,8 +645,9 @@ class MixedStreamPart(StreamPart):
         raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
 
 def stack_mixed(top, bottom):
-    parts = [top] if not isinstance(top, MixedStreamPart) else top.parts
-    if isinstance(bottom, MixedStreamPart):
+    stacked_classes = MixedStreamPart, StackProducer, StackConsumer, StackPipe
+    parts = [top] if not isinstance(top, stacked_classes) else top.parts
+    if isinstance(bottom, stacked_classes):
         parts += bottom.parts
     else:
         parts.append(bottom)
@@ -626,4 +655,172 @@ def stack_mixed(top, bottom):
     return MixedStreamPart(*parts)
 
 def compose_mixed_stream_parts(left, right):
-    pass
+    if isinstance(left, Consumer) or isinstance(right, Producer):
+        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
+
+    if isinstance(left, MixedStreamPart) and left.type_out() is None:
+        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
+
+    if isinstance(right, MixedStreamPart) and right.type_in() is None:
+        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
+        
+    
+    if not right.type_in().is_satisfied_by(left.type_out()):
+        raise TypeError("Can't compose '%s' and '%s'" % (left, right))
+
+    if isinstance(left, StackProducer):
+        return compose_stack_producer_mixed_stream(left, right)
+    if isinstance(right, StackConsumer):
+        return compose_mixed_stream_stacked_consumer(left, right)
+    if isinstance(left, MixedStreamPart):
+        if isinstance(right, MixedStreamPart):
+            return compose_two_mixed_streams(left, right)
+        return compose_mixed_stream_consumer(left, right)
+    if isinstance(right, MixedStreamPart):
+        return compose_producer_mixed_stream(left, right)
+
+    raise TypeError("Can't compose '%s' and '%s'" % (left, right))
+       
+
+def compose_stack_producer_mixed_stream(left, right):
+    parts = []
+    r_len = len(right.parts)
+    r_i = 0
+
+    for pr in left.parts:
+        r_i, r_cur = _get_next_consuming(r_len, r_i, right.parts, parts)
+        assert r_cur is not None
+        parts.append(pr >> r_cur)
+    parts += right.parts[r_i:]
+
+    assert len(parts) == r_len
+
+    return _stack_stream_parts(parts)
+    
+
+def compose_mixed_stream_stacked_consumer(left, right):
+    parts = []
+    l_len = len(left.parts)
+    l_i = 0
+
+    for co in right.parts:
+        l_i, l_cur = _get_next_producing(l_len, l_i, left.parts, parts)
+        assert l_cur is not None
+        parts.append(l_cur >> co)
+    parts += left.parts[l_i:]
+
+    assert len(parts) == l_len
+
+    return _stack_stream_parts(parts) 
+
+def compose_two_mixed_streams(left, right):
+    parts = []
+    l_i = 0
+    r_i = 0
+    l_len = len(left.parts)
+    r_len = len(right.parts)
+
+    # Combine everything that produces from the left
+    # with everything that consumes from the right in
+    # the order of appeareance.
+    l_cur, r_cur = None, None
+    while l_i < l_len and r_i < r_len:
+        l_i, l_cur = _get_next_producing(l_len, l_i, left.parts, parts)
+        r_i, r_cur = _get_next_consuming(r_len, r_i, right.parts, parts)
+
+        # Check whether there is stuff we could combine.
+        if l_cur is not None and r_cur is not None:
+            parts.append(l_cur >> r_cur)
+            l_cur, r_cur = None, None
+        elif l_cur is not None:
+            parts.append(l_cur)
+            l_cur = None
+        elif r_cur is not None:
+            parts.append(r_cur)
+            r_cur = None
+
+    parts += left.parts[l_i:]
+    parts += right.parts[r_i:]
+
+    assert l_cur is None 
+    assert r_cur is None 
+
+    return _stack_stream_parts(parts)
+
+def compose_producer_mixed_stream(left, right):
+    parts = []
+    r_i, r_cur = _get_next_consuming(len(right.parts), 0, right.parts, parts)
+    assert r_cur is not None
+    parts.append(left >> r_cur)
+    parts += right.parts[r_i:]
+
+    return _stack_stream_parts(parts)
+
+def compose_mixed_stream_consumer(left, right):
+    parts = []
+    l_i, l_cur = _get_next_producing(len(left.parts), 0, left.parts, parts)
+    assert l_cur is not None
+    parts.append(l_cur >> right)
+    parts += left.parts[l_i:]
+
+    return _stack_stream_parts(parts) 
+   
+###############################################################################
+#
+# Helpers for composing stacked stream parts
+#
+###############################################################################
+
+def _get_next_not_instance(l, i, search, dump, cls):
+    while True and i < l:
+        cur = search[i]
+        if not isinstance(cur, cls):
+            return i+1,cur
+        dump.append(cur) 
+        i += 1
+    return l,None
+
+def _get_next_consuming(l, i, search, dump):
+    return _get_next_not_instance(l, i, search, dump, (Producer,StreamProcess))
+
+def _get_next_producing(l, i, search, dump):
+    return _get_next_not_instance(l, i, search, dump, (Consumer, StreamProcess))
+ 
+def _stack_stream_parts(parts):
+    all_producers = True
+    all_consumers = True
+    all_processes = True
+    for part in parts:
+        all_producers = all_producers and isinstance(part, Producer)
+        all_consumers = all_consumers and isinstance(part, Consumer)
+        all_processes = all_processes and isinstance(part, StreamProcess)
+
+    if all_processes:
+        producers = []
+        consumers = []
+
+        for part in parts:
+            p = part.producer
+            c = part.consumer
+
+            if isinstance(c, PrependPipe):
+                p = p >> c.parts[0]
+                c = c.parts[1]
+
+            producers.append(p)
+            consumers.append(c)
+
+        sp = reduce(lambda t,b: t * b, producers)
+        sc = reduce(lambda t,b: t * b, consumers)
+
+        return sp >> sc
+
+    if all_producers:
+        return StackProducer(*parts)
+    if all_consumers:
+        return StackConsumer(*parts)
+
+    return MixedStreamPart(*parts)
+    
+        
+
