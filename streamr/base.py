@@ -641,7 +641,7 @@ class MixedStreamPart(StreamPart):
     def get_initial_env(self):
         raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
 
-    def shutdown_env(self):
+    def shutdown_env(self, env):
         raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
 
 def stack_mixed(top, bottom):
