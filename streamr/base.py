@@ -83,7 +83,7 @@ class StreamProcessor(object):
         return "[%s -> %s](%s)" % ( self.type_init(), self.type_result()
                                   , self.type_arrow())
 
-    def get_initial_env(self, params):
+    def get_initial_env(self, *params):
         """
         Initialize a new runtime environment for the stream processor.
         """
@@ -146,24 +146,24 @@ class StreamProcessor(object):
         """
         This processor does not consume data from upstream.
         """
-        return self.type_in() == Type.get(None)    
+        return self.type_in() == ()    
 
     def isConsumer(self):
         """
         This processor does not send data downstream.
         """
-        return self.type_out() == Type.get(None)
+        return self.type_out() == ()
 
     def isRunnable(self):
         """
         This processes stream arrow has type () -> ().
         """
-        return self.type_arrow() == ArrowType.get(Type.get(None), Type.get(None))
+        return self.type_arrow() == ArrowType.get((), ())
 
     # Engine used for running the process
     runtime_engine = None
 
-    def run(self, params):
+    def run(self, *params):
         """
         Run the stream process, using its runtime_engine.
 
@@ -210,7 +210,43 @@ class SimpleCompositionEngine(object):
 
 StreamProcessor.composition_engine = SimpleCompositionEngine()
 
+class ComposedStreamProcessor(object):
+    """
+    Mixin for all composed stream processors.
 
+    Handles initialisation and shutdown of the sub processors.
+    """
+    def __init__(self, types, processors):
+        assert ALL(isinstance(p, StreamProcessor) for p in processors)
+
+        if types is not None:
+            super(ComposedStreamProcessor, self).__init__(*types)
+
+        self.processors = list(processors)
+ 
+    def get_initial_env(self, params):
+        envs = []
+        i = 0
+        for p in self.processors:
+            if p.type_init() is unit:
+                env.append(p.get_initial_env(None))
+            else:
+                assert p.type_init().contains(params[i])
+                env.append(p.get_initial_env(params[i]))
+                i += 1
+                assert i < len(params)
+
+        return { "envs" : envs }
+
+    def shutdown_env(self, env):
+        for p, e in zip(self.processors, env["envs"]):
+            p.shutdown_env(e)
+
+
+class SequentialStreamProcessor(StreamProcessor):
+    def __init__(self, processors):
+        pass
+        
 class SimpleRuntimeEngine(object):
     """
     Very simple runtime engine, that loops process until either Stop is reached
@@ -225,7 +261,7 @@ class SimpleRuntimeEngine(object):
             raise RuntimeError("Process should not send a value downstream")
         
         res = None
-        env = process.get_initial_env(params)
+        env = process.get_initial_env(*params)
         try:
             while True:
                 res = process.step(env, upstream, downstream)
@@ -253,7 +289,7 @@ class Producer(StreamProcessor):
     the downstream without an upstrean and creates no result.
     """
     def __init__(self, type_init, type_out):
-        super(Producer, self).__init__(type_init, Type.get(None), Type.get(None), type_out)
+        super(Producer, self).__init__(type_init, (), (), type_out)
 
     def step(self, env, upstream, downstream):
         if not isinstance(env, EnvAndGen):
@@ -275,7 +311,7 @@ class Consumer(StreamProcessor):
     without producing new values. It also returns a result.
     """
     def __init__(self, type_init, type_result, type_in):
-        super(Consumer, self).__init__(type_init, type_result, type_in, Type.get(None))
+        super(Consumer, self).__init__(type_init, type_result, type_in, ())
 
     def step(self, env, upstream, downstream):
         return self.consume(env, upstream)
@@ -308,7 +344,7 @@ class Pipe(StreamProcessor):
     result.
     """ 
     def __init__(self, type_init, type_in, type_out):
-        super(Pipe, self).__init__(type_init, Type.get(None), type_in, type_out)
+        super(Pipe, self).__init__(type_init, (), type_in, type_out)
 
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
@@ -342,11 +378,11 @@ class StreamProcess(StreamProcessor):
 
         tinit = producer.type_init() * consumer.type_init()
         super(StreamProcess, self).__init__( tinit, consumer.type_result()
-                                           , Type.get(None), Type.get(None) )  
+                                           , (), () )  
 
-    def get_initial_env(self, params):
-        return { "env_producer" : self.producer.get_initial_env(None)
-               , "env_consumer" : self.consumer.get_initial_env(None)
+    def get_initial_env(self, *params):
+        return { "env_producer" : self.producer.get_initial_env()
+               , "env_consumer" : self.consumer.get_initial_env()
                , "cache"        : []
                }               
                 
@@ -446,7 +482,7 @@ def append_pipe(left, right):
 def stream_process(left, right):
     return StreamProcess(left, right)
 
-class ComposedStreamProcessor(object):
+class _ComposedStreamProcessor(object):
     """
     Mixin for all composed stream parts.
 
@@ -456,16 +492,16 @@ class ComposedStreamProcessor(object):
         assert ALL(isinstance(p, StreamProcessor) for p in parts)
 
         if types is not None:
-            super(ComposedStreamProcessor, self).__init__(*types)
+            super(_ComposedStreamProcessor, self).__init__(*types)
 
         self.parts = list(parts)
  
-    def get_initial_env(self, _):
-        return { "envs" : [part.get_initial_env(None) for part in self.parts] }
+    def get_initial_env(self, *params):
+        return { "envs" : [part.get_initial_env() for part in self.parts] }
     def shutdown_env(self, env):
         [v[0].shutdown_env(v[1]) for v in zip(self.parts, env["envs"])] 
 
-class FusePipe(ComposedStreamProcessor, Pipe):
+class FusePipe(_ComposedStreamProcessor, Pipe):
     """
     A pipe build from two other pipes.
     """
@@ -491,7 +527,7 @@ class FusePipe(ComposedStreamProcessor, Pipe):
             upstream = part.transform(e, upstream)
         return upstream
     
-class AppendPipe(ComposedStreamProcessor, Producer):
+class AppendPipe(_ComposedStreamProcessor, Producer):
     """
     A producer build from another producer with an appended pipe.
     """
@@ -513,7 +549,7 @@ class AppendPipe(ComposedStreamProcessor, Producer):
         upstream = self.parts[0].produce(env["envs"][0])
         return self.parts[1].transform(env["envs"][1], upstream)
 
-class PrependPipe(ComposedStreamProcessor, Consumer):
+class PrependPipe(_ComposedStreamProcessor, Consumer):
     """
     A consumer build from another consumer with a prepended pipe.
     """
@@ -528,8 +564,8 @@ class PrependPipe(ComposedStreamProcessor, Consumer):
     def type_in(self):
         return self.parts[0].type_in()
 
-    def get_initial_env(self, _):
-        env = super(PrependPipe, self).get_initial_env(None)
+    def get_initial_env(self, *params):
+        env = super(PrependPipe, self).get_initial_env()
 
         # Since we get a new upstream generator on every call
         # to consume, we need to create a generator that yields
@@ -597,7 +633,7 @@ def stack_consumer(top, bottom):
 
     return StackConsumer(*consumers)
 
-class StackPipe(ComposedStreamProcessor, Pipe):
+class StackPipe(_ComposedStreamProcessor, Pipe):
     """
     Some pipes stacked onto each other.
     """
@@ -624,7 +660,7 @@ class StackPipe(ComposedStreamProcessor, Pipe):
                 vals.append(next(gen))
             yield tuple(vals) 
 
-class StackProducer(ComposedStreamProcessor, Producer):
+class StackProducer(_ComposedStreamProcessor, Producer):
     """
     Some producers stacked onto each other.
 
@@ -648,7 +684,7 @@ class StackProducer(ComposedStreamProcessor, Producer):
                 vals.append(next(gen))
             yield tuple(vals)
 
-class StackConsumer(ComposedStreamProcessor, Consumer):
+class StackConsumer(_ComposedStreamProcessor, Consumer):
     """
     Some consumers stacked onto each other. 
     """
@@ -660,8 +696,8 @@ class StackConsumer(ComposedStreamProcessor, Consumer):
         tin = reduce(lambda x,y: x * y, (c.type_in() for c in consumers))
         super(StackConsumer, self).__init__( (tinit, tresult, tin), *consumers)
 
-    def get_initial_env(self, _):
-        env = super(StackConsumer, self).get_initial_env(None)
+    def get_initial_env(self, *params):
+        env = super(StackConsumer, self).get_initial_env()
 
         # We use a similar trick than in PrependPipe here.
         env["upstream"] = [None]
@@ -743,7 +779,7 @@ class MixedStreamProcessor(StreamProcessor):
             tin = reduce( lambda x,y: x * y
                              , (p.type_in() for p in consumers))
         else:
-            tin = None
+            tin = () 
 
         producers = list(filter( lambda x: not isinstance(x, (Consumer, StreamProcess))
                           , self.parts))
@@ -751,14 +787,14 @@ class MixedStreamProcessor(StreamProcessor):
             tout = reduce( lambda x,y: x * y
                               , (p.type_out() for p in producers))
         else:
-            tout = None 
+            tout = () 
 
         tinit = reduce(lambda x,y: x * y, (p.type_init() for p in parts))
         tresult = reduce(lambda x,y: x * y, (p.type_result() for p in parts))
 
         super(MixedStreamProcessor, self).__init__(tinit, tresult, tin, tout)
 
-    def get_initial_env(self, _):
+    def get_initial_env(self, *params):
         raise RuntimeError("Do not attempt to run a ClosedEndStackPipe!!")
 
     def shutdown_env(self, env):

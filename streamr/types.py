@@ -114,7 +114,7 @@ class Type(object):
             if isinstance(py_type, tuple):
                 return ProductType.get(*py_type)
 
-            if py_type is None.__class__ or py_type is None:
+            if py_type == ():
                 return UnitType.get()
 
             return PyType.get(py_type)
