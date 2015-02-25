@@ -113,10 +113,10 @@ class TestCompositionBase(object):
 class TestCompositionTyped(object):
     def test_PrCompCoAny(self, pr, pr_str, co_any):
         sp1 = pr >> co_any
-        assert sp1.run() == [10]*10
+        assert sp1.run(None) == [10]*10
 
         sp2 = pr_str >> co_any
-        assert sp2.run() == ["Hello World!"]*10
+        assert sp2.run(None) == ["Hello World!"]*10
 
     def test_PrStrCompCoInt(self, pr_str, co):
         with pytest.raises(TypeError) as excinfo:
@@ -136,13 +136,13 @@ class TestCompositionTyped(object):
 class TestStreamProcessResults(object):
     def test_PrCompCo(self, pr, co):
         sp = pr >> co
-        assert sp.run() == [10]*10
+        assert sp.run(None) == [10]*10
     def test_PrCompPiCompCo(self, pr, pi, co):
         sp = pr >> pi >> co
-        assert sp.run() == [20]*10
+        assert sp.run(None) == [20]*10
     def test_PrCompPiCompPiCompCo(self, pr, pi, co):
         sp = pr >> pi >> pi >> co
-        assert sp.run() == [40]*10
+        assert sp.run(None) == [40]*10
 
 
 class TestStacking(object):
@@ -202,40 +202,40 @@ class TestStacking(object):
 
     def test_result1(self, pr, pi, co):
         sp = (pr * pr) >> (pi * pi) >> (co * co)
-        assert sp.run() == ([20]*10, [20]*10)
+        assert sp.run(None) == ([20]*10, [20]*10)
 
     def test_result2(self, pr, pi, co):
         sp = (pr * pr) >> (pi * co) >> co
-        assert sp.run() == ([20]*10, [10]*10)
+        assert sp.run(None) == ([20]*10, [10]*10)
 
     def test_result3(self, pr, pi, co):
         sp = pr >> (pi * pr) >> (co * co)
-        assert sp.run() == ([20]*10, [10]*10)
+        assert sp.run(None) == ([20]*10, [10]*10)
 
     def test_result4(self, pr, pi, co):
         sp = (pr * pr) >> (pi * pi) >> (pi * pi) >> (co * co)
-        assert sp.run() == ([40]*10, [40]*10)
+        assert sp.run(None) == ([40]*10, [40]*10)
 
     def test_result5(self, pr, pi, co):
         sp = (pr * pr * pr) >> (pi * pi * co) >> (pi * co) >> co
-        assert sp.run() == ([40]*10, [20]*10, [10]*10)
+        assert sp.run(None) == ([40]*10, [20]*10, [10]*10)
 
     def test_result6(self, pr, pi, co):
         sp = pr >> (pi * pr) >> (pi * pi * pr) >> (co * co * co)
-        assert sp.run() == ([40]*10, [20]*10, [10]*10)
+        assert sp.run(None) == ([40]*10, [20]*10, [10]*10)
 
     def test_result7(self, pr, pi, co):
         sp = (pr * pr * pr) >> (co * pi * pi) >> (co * pi) >> co
-        assert sp.run() == ([10]*10, [20]*10, [40]*10)
+        assert sp.run(None) == ([10]*10, [20]*10, [40]*10)
 
     def test_result8(self, pr, pi, co):
         sp = pr >> (pr * pi) >> (pr * pi * pi) >> (co * co * co)
-        assert sp.run() == ([10]*10, [20]*10, [40]*10)
+        assert sp.run(None) == ([10]*10, [20]*10, [40]*10)
 
     def test_result9(self, pr, pi, co):
         sp = pr >> (pr * pi * pr) >> (pi * co * pi) >> (co * co)
 
-        assert sp.run() == ([20]*10, [20]*10, [20]*10)
+        assert sp.run(None) == ([20]*10, [20]*10, [20]*10)
 
 
 

@@ -62,6 +62,8 @@ class StreamProcessor(object):
         self.tin = Type.get(type_in)
         self.tout = Type.get(type_out)
 
+        self.runtime_engine = StreamProcessor.runtime_engine
+
     def type_init(self):
         return self.tinit
     def type_result(self):
@@ -93,7 +95,7 @@ class StreamProcessor(object):
         """
         pass
 
-    def process(self, env, upstream, downstream):
+    def step(self, env, upstream, downstream):
         """
         Performs the actual processing. Gets an env that was created by
         get_initial_env, a upstream generator object and a function that
@@ -104,7 +106,7 @@ class StreamProcessor(object):
         invocation is the result. If there is no such result, that is interpreted
         as Resume.
         """
-        raise NotImplementedError("Implement StreamProcessor.process for"
+        raise NotImplementedError("Implement StreamProcessor.step for"
                                   " class %s!" % type(self))
         
     # Engine used for composition
@@ -152,6 +154,26 @@ class StreamProcessor(object):
         """
         return self.type_out() == Type.get(None)
 
+    def isRunnable(self):
+        """
+        This processes stream arrow has type () -> ().
+        """
+        return self.type_arrow() == ArrowType.get(Type.get(None), Type.get(None))
+
+    # Engine used for running the process
+    runtime_engine = None
+
+    def run(self, params):
+        """
+        Run the stream process, using its runtime_engine.
+
+        Params is used to initialize the environment of the processor. Returns
+        a result or throws a runtime error.
+
+        Process can only be run if its arrow is () -> ().
+        """
+        return self.runtime_engine.run(self, params)
+
 
 class Resume(object):
     pass
@@ -180,11 +202,41 @@ class SimpleCompositionEngine(object):
 StreamProcessor.composition_engine = SimpleCompositionEngine()
 
 
+class SimpleRuntimeEngine(object):
+    """
+    Very simple runtime engine, that loops process until either Stop is reached
+    or StopIteration is thrown.
+    """
+    def run(self, process, params):
+        assert process.isRunnable()
+        assert process.type_init().contains(params)
+
+        upstream = (i for i in [])           
+        def downstream(val):
+            raise RuntimeError("Process should not send a value downstream")
+        
+        res = None
+        env = process.get_initial_env(params)
+        try:
+            while True:
+                res = process.step(env, upstream, downstream)
+                assert isinstance(res, (Stop, MayResume, Resume))
+                if isinstance(res, Stop):
+                    return res.result
+            
+        except StopIteration:
+            if isinstance(res, (Stop, MayResume)):
+                return res.result
+            raise RuntimeError("Process did not return result.")
+        finally:
+            process.shutdown_env(env)
+
+StreamProcessor.runtime_engine = SimpleRuntimeEngine()
+                
 class EnvAndGen(object):
     def __init__(self, env, gen):
         self.env = env
         self.gen = gen
-
 
 class Producer(StreamProcessor):
     """
@@ -194,9 +246,9 @@ class Producer(StreamProcessor):
     def __init__(self, type_init, type_out):
         super(Producer, self).__init__(type_init, Type.get(None), Type.get(None), type_out)
 
-    def process(self, env, upstream, downstream):
+    def step(self, env, upstream, downstream):
         if not isinstance(env, EnvAndGen):
-            env = EnvAndGen(env, self.produce(upstream))
+            env = EnvAndGen(env, self.produce(env))
 
         downstream(next(env.gen))
         return MayResume(None)
@@ -216,7 +268,7 @@ class Consumer(StreamProcessor):
     def __init__(self, type_init, type_result, type_in):
         super(Consumer, self).__init__(type_init, type_result, type_in, Type.get(None))
 
-    def process(self, env, upstream, downstream):
+    def step(self, env, upstream, downstream):
         return self.consume(env, upstream)
 
     def consume(self, env, upstream):
@@ -252,7 +304,7 @@ class Pipe(StreamProcessor):
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
-    def process(self, env, upstream, downstream):
+    def step(self, env, upstream, downstream):
         if not isinstance(env, EnvAndGen):
             env = EnvAndGen(env, self.transform(upstream))
 
@@ -286,7 +338,18 @@ class StreamProcess(StreamProcessor):
         super(StreamProcess, self).__init__( tinit, consumer.type_result()
                                            , Type.get(None), Type.get(None) )  
 
-    def run(self):
+    def get_initial_env(self, params):
+        return { "env_producer" : self.producer.get_initial_env(None)
+               , "env_consumer" : self.consumer.get_initial_env(None)
+               , "cache"        : []
+               }               
+                
+
+    def shutdown_env(self, env):
+        self.producer.shutdown_env(env["env_producer"])
+        self.consumer.shutdown_env(env["env_consumer"])
+
+    def step(self, env, upstream, downstream):
         """
         Let this stream process run.
 
@@ -294,26 +357,19 @@ class StreamProcess(StreamProcessor):
         execution models for the same stream, it is very likely that this method
         will exchanged by various interpreter-like runners.
         """
-        p_env = self.producer.get_initial_env(None)
-        c_env = self.consumer.get_initial_env(None)
+        def internal_downstream(val):
+            env["cache"].append(val)
 
-        upstream = self.producer.produce(p_env)
-
-        res = None
-
-        try:
+        def internal_upstream():
             while True:
-                res = self.consumer.consume(c_env, upstream)
-                if isinstance(res, Stop):
-                    return res.result 
-        except StopIteration:
-            if res is not None and isinstance(res, (Stop, MayResume)):
-                return res.result
-            raise RuntimeError("The producer ran out of values, but consumer "
-                               "wants to resume.")
-        finally:
-            self.producer.shutdown_env(p_env)
-            self.consumer.shutdown_env(c_env)
+                while len(env["cache"]) == 0:
+                    res = self.producer.step(env["env_producer"], upstream, internal_downstream)
+                    if isinstance(res, Stop):
+                        raise StopIteration()
+                while len(env["cache"]) > 0:
+                    yield env["cache"].pop(0) 
+
+        return self.consumer.step(env["env_consumer"], internal_upstream(), downstream)
 
 
 ###############################################################################
