@@ -275,6 +275,14 @@ class TestStacking(object):
 ###############################################################################
 
 class _TestStreamProcessor(object):
+    @pytest.fixture
+    def env_params(self):
+        return ()
+
+    @pytest.fixture
+    def max_amount(self):
+        return 100
+
     def test_typeOut(self, processor):
         assert isinstance(processor.type_out(), Type)
 
@@ -295,10 +303,6 @@ class _TestProducer(_TestStreamProcessor):
     @pytest.fixture
     def processor(self, producer):
         return producer
-
-    @pytest.fixture
-    def max_amount(self):
-        return 100
 
     def test_isProducer(self, producer):
         assert producer.is_producer()
@@ -369,10 +373,6 @@ class _TestPipe(_TestStreamProcessor):
     @pytest.fixture
     def processor(self, pipe):
         return pipe 
-
-    @pytest.fixture
-    def max_amount(self):
-        return 100
 
     def test_isPipe(self, pipe):
         assert pipe.is_pipe()
