@@ -1,7 +1,6 @@
 import pytest
 
-from streamr import *
-from streamr.core import Stop, Resume, MayResume, Exhausted
+from streamr.core import StreamProcessor, Stop, Resume, MayResume, Exhausted
 from streamr.types import Type, unit, ArrowType
 
 
@@ -345,7 +344,7 @@ class _TestConsumer(_TestStreamProcessor):
                 res = consumer.step(env, upstream, downstream)
                 if isinstance(res, Stop):
                     return
-        except StopIteration:
+        except Exhausted:
             assert isinstance(res, MayResume)
             return
         finally:
@@ -494,20 +493,20 @@ class TestStackConsumer(_TestConsumer):
 #
 ###############################################################################
 
-class MockProducer(Producer):
+class MockProducer(StreamProcessor):
     def __init__(self, ttype, value):
-        super(MockProducer, self).__init__((), ttype)
+        super(MockProducer, self).__init__((), (), (), ttype)
         self.value = value
 
     def get_initial_env(self):
         return 0
 
-    def produce(self, env):
-        while True:
-            if env >= 100:
-                raise RuntimeError("I did not expect this to run that long...")
-            yield self.value
-            env += 1
+    def step(self, env, await, send):
+        if env >= 100:
+            raise RuntimeError("I did not expect this to run that long...")
+        env += 1
+        send(self.value)
+        return MayResume()
 
 class TestMockProducer(_TestProducer):
     @pytest.fixture
@@ -522,23 +521,24 @@ class TestMockProducer(_TestProducer):
     def env_params(self):
         return()
 
-class MockConsumer(Consumer):
+class MockConsumer(StreamProcessor):
     def __init__(self, ttype, max_amount = None):
-        super(MockConsumer, self).__init__((), [ttype], ttype)
+        super(MockConsumer, self).__init__((), [ttype], ttype, ())
         self.max_amount = max_amount
     def get_initial_env(self, *params):
         return [] 
     def shutdown_env(self, env):
         pass
-    def consume(self, env, upstream):
-        env.append(next(upstream))
+
+    def step(self, env, await, send):
+        env.append(await())
 
         if self.max_amount is not None and len(env) >= self.max_amount:
             return Stop(env)
 
         return MayResume(env)
 
-class TestMockConsumer(Consumer):
+class TestMockConsumer(_TestConsumer):
     @pytest.fixture
     def consumer(self):
         return MockConsumer(int)
@@ -551,13 +551,14 @@ class TestMockConsumer(Consumer):
     def env_params(self):
         return()
 
-class MockPipe(Pipe):
+class MockPipe(StreamProcessor):
     def __init__(self, type_in, type_out, transform = None):
-        super(MockPipe, self).__init__((), type_in, type_out)
+        super(MockPipe, self).__init__((), (), type_in, type_out)
         self.trafo = (lambda x : x) if transform is None else transform
-    def transform(self, env, upstream):
-        for var in upstream:
-            yield self.trafo(var)
+
+    def step(self, env, await, send):
+        send(self.trafo(await()))
+        return MayResume()
 
 class TestMockPipe(_TestPipe):
     @pytest.fixture

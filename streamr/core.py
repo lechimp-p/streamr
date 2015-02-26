@@ -195,14 +195,14 @@ class Resume(object):
     pass
 
 class Stop(object):
-    def __init__(self, result):
+    def __init__(self, result = ()):
         self.result = result
 
 class MayResume(object):
-    def __init__(self, result):
+    def __init__(self, result = ()):
         self.result = result
 
-class Exhausted(object):
+class Exhausted(BaseException):
     pass
 
 

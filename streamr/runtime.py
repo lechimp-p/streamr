@@ -28,7 +28,7 @@ class SimpleRuntimeEngine(object):
                 if isinstance(res, Stop):
                     return res.result
             
-        except StopIteration:
+        except Exhausted:
             if isinstance(res, (Stop, MayResume)):
                 return res.result
             raise RuntimeError("Process did not return result.")
