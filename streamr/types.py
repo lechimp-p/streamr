@@ -174,6 +174,38 @@ class ProductType(Type):
     def __str__(self):
         return "(%s)" % reduce(lambda a,b : "%s, %s" % (a,b), self.types)
 
+    def construct(self, l):
+        """
+        Construct a tuple according to product by using values from l.
+        """
+        vals = []
+        for t in self.types:
+            if isinstance(t, UnitType):
+                continue
+
+            if isinstance(t, ProductType):
+                vals.append(t.construct(l))
+                continue
+
+            val = l.pop(0)
+            if not t.contains(val):
+                raise TypeError("Expected value of type '%s', got '%s'" % (t,val))
+            vals.append(val)
+        return tuple(vals)
+
+    def deconstruct(self, p):
+        """
+        Deconstruct the tuple p into a list.
+        """
+        if not isinstance(p, tuple):
+            return [p]
+
+        ret = []
+        for e in p:
+            ret += self.deconstruct(e)
+        return ret
+            
+
 class ListType(Type):
     """
     Represents a list type with items of one fixed other type.

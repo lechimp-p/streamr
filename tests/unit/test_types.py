@@ -167,6 +167,48 @@ class TestProductTypes(object):
         assert t.contains((base_inst, base_inst))
         assert not t.contains((base_inst, other_inst))
 
+    def test_noConstructionCrashWithType(self):
+        t1 = Type.get(ProductType.get(int, int), int)
+        t2 = Type.get((int,int),int)
+        
+        assert t1 == t2
+        
+
+    def test_construct(self):
+        t1 = Type.get(int,(int,int))
+        t2 = Type.get(int,int,int)
+        t3 = Type.get((int,int),int)
+
+        l = [1,2,3]
+
+        assert t1.contains(t1.construct(list(l)))
+        assert t2.contains(t2.construct(list(l)))
+        assert t3.contains(t3.construct(list(l)))
+
+        assert t1.construct(list(l)) == (1,(2,3))
+        assert t2.construct(list(l)) == (1,2,3)
+        assert t3.construct(list(l)) == ((1,2),3)
+
+    def test_deconstruct(self):
+        t1 = Type.get(int,(int,int))
+        t2 = Type.get(int,int,int)
+        t3 = Type.get((int,int),int)
+
+        p1 = (1,(2,3))
+        p2 = (1,2,3)
+        p3 = ((1,2),3)
+
+        l = [1,2,3]
+
+        assert t1.deconstruct(p1) == l
+        assert t2.deconstruct(p2) == l
+        assert t3.deconstruct(p3) == l
+
+
+
+
+
+
 class TestListTypes(object):
     def test_comparison(self, base, sub, other):
         t1 = Type.get([base])
