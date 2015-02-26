@@ -19,11 +19,6 @@ Types could be used with the python comparison operators. The meaning of the
 comparison operations is a little different from their standard meaning on 
 integers e.g..
 
-Equality (==) is to be considered as "equality up to isomorphism" (may computer
-science people forgive my loose terminology). That means to (a == b) == True for 
-two types a and b, when there exists a transformation from values of type a to
-values of type b. Think of tuples like (1,(2,3)) and ((1,2),3).
-
 The lower than and greather than operators are used to express subclassing,
 where the direction of the operator shows the direction in which a casting is
 possible, thus subclass >= class.
@@ -161,19 +156,7 @@ class ProductType(Type):
 
     @staticmethod
     def get(*types):
-        def flatten_product_types(types):
-            res = []
-            for t in types:
-                t = Type.get(t)
-                if isinstance(t, ProductType):
-                    res += flatten_product_types(t.types)
-                elif isinstance(t, UnitType):
-                    pass
-                else:
-                    res.append(t)
-            return res
-
-        types = tuple(flatten_product_types(types))
+        types = tuple(filter(lambda x : x != unit, types))
 
         if len(types) == 0:
             return UnitType.get()
