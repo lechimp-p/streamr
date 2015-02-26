@@ -227,8 +227,6 @@ class ComposedStreamProcessor(StreamProcessor):
         super(ComposedStreamProcessor, self).__init__(tinit, tresult, type_in, type_out)
 
         self.processors = list(processors)
-        self.amount_procs = len(self.processors)
-        self.amount_result = len(list(filter(lambda x: x.type_result() != (), self.processors)))
  
     def get_initial_env(self, *params):
         envs = []
@@ -263,85 +261,18 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
 
     def get_initial_env(self, *params):
         env = super(SequentialStreamProcessor, self).get_initial_env(*params)
-        env["caches"] = [[]] * self.amount_procs
-        env["results"] = [()] * self.amount_procs
-        env["exhausted"] = [False] * self.amount_procs
+        env["rt"] = self.runtime_engine.get_initial_env_for_seq(self.processors)
         return env
-
-    def _downstream(self, env, downstream, i):
-        """
-        Downstream from i'th processor.
-        """
-        assert i < self.amount_procs
-        assert i >= 0
-
-        if i == self.amount_procs - 1:
-            return downstream
-
-        def _downstream(val):
-           env["caches"][i].append(val)
-
-        return _downstream 
-
-    def _upstream(self, env, upstream, downstream, i):
-        """
-        Upstream to i'th processor.
-        """
-        assert i < self.amount_procs
-        assert i >= 0
-
-        if i == 0:
-            return upstream
-
-        def _upstream():
-            us = self._upstream(env, upstream, downstream, i-1)
-            ds = self._downstream(env,downstream,i-1)
-            while True:
-                while len(env["caches"][i-1]) == 0:
-                    if env["exhausted"][i-1]:
-                        raise StopIteration()
-                    p = self.processors[i-1]
-                    res = p.step( env["envs"][i-1], us, ds)
-                    if not isinstance(res, Resume) and p.type_result() != ():
-                        env["results"][i-1] = res.result
-                    if isinstance(res, Stop):
-                        env["exhausted"][i-1] = True
-                while len(env["caches"][i-1]) > 0:
-                    yield env["caches"][i-1].pop(0)
-
-        return _upstream() 
-
-    def _rectified_result(self, env):
-        if self.amount_result == 0:
-            return ()
-        res = list(filter(lambda x: x != (), env["results"]))
-        if self.amount_result == 1:
-            return res[0]
-        return tuple(res)
         
 
     def step(self, env, upstream, downstream):
-        res = self.processors[-1].step( env["envs"][-1]
-                                      , self._upstream( env, upstream, downstream
-                                                      , self.amount_procs - 1)
-                                      , self._downstream( env, downstream
-                                                        , self.amount_procs - 1)
-                                      )       
+        return self.runtime_engine.step_seq( self.processors
+                                           , env["envs"]
+                                           , env["rt"]
+                                           , upstream
+                                           , downstream
+                                           )
 
-        if isinstance(res, Resume):
-            return Resume()
-
-        env["results"][-1] = res.result
-
-        if isinstance(res, Stop):
-            if len(list(filter(lambda x: x != (), env["results"]))) != self.amount_result:
-                raise RuntimeError("Last stream processor signals stop,"
-                                   " but there are not enough results.")
-
-        r = self._rectified_result(env)
-        if isinstance(res, MayResume):
-            return MayResume(r)
-        return Stop(r)
 
 class ParallelStreamProcessor(ComposedStreamProcessor):
     """
@@ -353,113 +284,18 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
 
         super(ParallelStreamProcessor, self).__init__(tin, tout, processors)
 
-        self.amount_in = len(list(filter(lambda x: x.type_in() != (), self.processors)))
-        self.amount_out = len(list(filter(lambda x: x.type_out() != (), self.processors)))
-
     def get_initial_env(self, *params):
         env = super(ParallelStreamProcessor, self).get_initial_env(*params)
-        env["caches_in"] = [[]] * self.amount_procs
-        env["caches_out"] = [[]] * self.amount_procs
+        env["rt"] = self.runtime_engine.get_initial_env_for_par(self.processors)
         return env
 
-    def _downstream(self, env, i):
-        """
-        Downstream from i't processor.
-        """
-        assert i < self.amount_procs
-        assert i >= 0
-
-        def _downstream(val):
-            env["caches_out"][i].append(val)
-        return _downstream
-
-    def _upstream(self, env, upstream, i):
-        """
-        Upstream to i't processor.
-        """
-        assert i < self.amount_procs
-        assert i >= 0
-
-        assert self.processors[i].type_in() != ()
-
-        while True:
-            while len(env["caches_in"][i]) == 0:
-                self._fill_cache_in(env, upstream)
-            while len(env["caches_in"][i]) > 0:
-                yield env["caches_in"][i].pop(0)
-
-    def _fill_cache_in(self, env, upstream):
-        assert self.amount_in > 0
-
-        if self.amount_in == 1:
-            res = [next(upstream)]
-        else:
-            res = list(next(upstream))
-
-        for p,i in zip(self.processors, range(0, self.amount_procs)):
-            if p.type_in() != ():
-                env["caches_in"][i].append(res.pop(0))
-
-    def _flush_cache_out(self, env, downstream):
-        if self.amount_out == 0:
-            return
-
-        resume = True
-        while resume:
-            res = [] 
-            for p,cache in zip(self.processors, env["caches_out"]):  
-                if p.type_out() == ():
-                    continue
-                if len(cache) == 0:
-                    resume = False
-                    break
-                res.append(cache.pop(0))
-            if resume:
-                if self.amount_out == 1:
-                    downstream(res[0])
-                else:
-                    downstream(tuple(res)) 
-
-        for r, cache in zip(res, env["caches_out"]):
-            cache.insert(0, r)
-
-    def _rectify_res(self, res):
-        assert len(res) == self.amount_result
-
-        if self.amount_result == 1:
-            return res[0]
-
-        return tuple(res)
-
     def step(self, env, upstream, downstream):
-        res = []
-        stop = False
-        must_resume = False
-        for p,i in zip(self.processors, range(0, self.amount_procs)):
-            r = p.step( env["envs"][i]
-                      , self._upstream(env, upstream, i)
-                      , self._downstream(env, i))
-            stop = stop or isinstance(r, Stop)
-            must_resume = must_resume or isinstance(r, Resume)
-            if not isinstance(r, Resume) and p.type_result() != ():
-                res.append(r.result)
-
-        if stop and must_resume:
-            raise RuntimeError("One consumer wants to stop, while another needs to resume.")
-
-        self._flush_cache_out(env, downstream) 
-
-        if must_resume:
-            return Resume()
-
-        res = self._rectify_res(res)
-
-        if stop:
-            return Stop(res)
-
-        return MayResume(res)
-
-
+        return self.runtime_engine.step_par( self.processors
+                                           , env["envs"]
+                                           , env["rt"]
+                                           , upstream
+                                           , downstream
+                                           )
                 
 class EnvAndGen(object):
     def __init__(self, env, gen):
