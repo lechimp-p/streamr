@@ -101,16 +101,13 @@ class StreamProcessor(object):
         """
         pass
 
-    def step(self, env, upstream, downstream):
+    def step(self, env, await, send):
         """
         Performs the actual processing. Gets an env that was created by
-        get_initial_env, a upstream generator object and a function that
-        sends data downstream.
+        get_initial_env, a function to pull values from upstream function to 
+        send data downstream.
 
-        Must return Stop, MayResume oder Resume. If StopIteration is thrown
-        inside the body, that is interpreted as if the result from the last
-        invocation is the result. If there is no such result, that is interpreted
-        as Resume.
+        Must return Stop, MayResume oder Resume.
         """
         raise NotImplementedError("Implement StreamProcessor.step for"
                                   " %s!" % type(self))
@@ -205,6 +202,9 @@ class MayResume(object):
     def __init__(self, result):
         self.result = result
 
+class Exhausted(object):
+    pass
+
 
 ###############################################################################
 #
@@ -265,12 +265,12 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
         return env
         
 
-    def step(self, env, upstream, downstream):
+    def step(self, env, await, send):
         return self.runtime_engine.step_seq( self.processors
                                            , env["envs"]
                                            , env["rt"]
-                                           , upstream
-                                           , downstream
+                                           , await 
+                                           , send 
                                            )
 
 
@@ -289,12 +289,12 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
         env["rt"] = self.runtime_engine.get_initial_env_for_par(self.processors)
         return env
 
-    def step(self, env, upstream, downstream):
+    def step(self, env, await, send):
         return self.runtime_engine.step_par( self.processors
                                            , env["envs"]
                                            , env["rt"]
-                                           , upstream
-                                           , downstream
+                                           , await
+                                           , send
                                            )
                 
 class EnvAndGen(object):
@@ -310,11 +310,11 @@ class Producer(StreamProcessor):
     def __init__(self, type_init, type_out):
         super(Producer, self).__init__(type_init, (), (), type_out)
 
-    def step(self, env, upstream, downstream):
+    def step(self, env, await, send):
         if not isinstance(env, EnvAndGen):
             env = EnvAndGen(env, self.produce(env))
 
-        downstream(next(env.gen))
+        send(next(env.gen))
         return MayResume(())
 
     def produce(self, env):
@@ -332,8 +332,13 @@ class Consumer(StreamProcessor):
     def __init__(self, type_init, type_result, type_in):
         super(Consumer, self).__init__(type_init, type_result, type_in, ())
 
-    def step(self, env, upstream, downstream):
-        return self.consume(env, upstream)
+    def step(self, env, await, send):
+        def _upstream():
+            while True:
+                val = await()
+                yield val
+
+        return self.consume(env, _upstream())
 
     def consume(self, env, upstream):
         """
@@ -368,11 +373,16 @@ class Pipe(StreamProcessor):
     def __str__(self):
         return "(%s -> %s)" % (self.type_in(), self.type_out()) 
 
-    def step(self, env, upstream, downstream):
+    def step(self, env, await, send):
         if not isinstance(env, EnvAndGen):
-            env = EnvAndGen(env, self.transform(env, upstream))
+            def _upstream():
+                while True:
+                    val = await()
+                    yield val
 
-        downstream(next(env.gen))
+            env = EnvAndGen(env, self.transform(env, _upstream()))
+
+        send(next(env.gen))
         return MayResume(())        
 
     def transform(self, env, upstream):
@@ -410,7 +420,7 @@ class StreamProcess(StreamProcessor):
         self.producer.shutdown_env(env["env_producer"])
         self.consumer.shutdown_env(env["env_consumer"])
 
-    def step(self, env, upstream, downstream):
+    def step(self, env, await, send):
         """
         Let this stream process run.
 
@@ -418,16 +428,16 @@ class StreamProcess(StreamProcessor):
         execution models for the same stream, it is very likely that this method
         will exchanged by various interpreter-like runners.
         """
-        def internal_downstream(val):
+        def internal_send(_val):
             env["cache"].append(val)
 
         def internal_upstream():
             while True:
                 while len(env["cache"]) == 0:
-                    res = self.producer.step(env["env_producer"], upstream, internal_downstream)
+                    res = self.producer.step(env["env_producer"], await, internal_send)
                     if isinstance(res, Stop):
                         raise StopIteration()
                 while len(env["cache"]) > 0:
                     yield env["cache"].pop(0) 
 
-        return self.consumer.step(env["env_consumer"], internal_upstream(), downstream)
+        return self.consumer.step(env["env_consumer"], internal_upstream(), send)
