@@ -1,3 +1,5 @@
+# Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
+
 import pytest
 
 from streamr.core import StreamProcessor, Stop, Resume, MayResume, Exhausted
