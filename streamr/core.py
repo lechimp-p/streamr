@@ -35,6 +35,12 @@ if "reduce" not in globals():
 
 from .types import Type, ArrowType, ALL, sequence, unit
 
+###############################################################################
+#
+# Interface for an processor in the pipeline.
+#
+###############################################################################
+
 class StreamProcessor(object):
     """
     A stream processor is the fundamental object to describe a stream process.
@@ -182,6 +188,12 @@ class StreamProcessor(object):
         return self.runtime_engine.run(self, params)
 
 
+###############################################################################
+#
+# Signals for the step function.
+#
+###############################################################################
+
 class Resume(object):
     pass
 
@@ -194,28 +206,11 @@ class MayResume(object):
         self.result = result
 
 
-class SimpleCompositionEngine(object):
-    """
-    Very simple engine to provide composition operations for stream processors.
-
-    Could be switched for a more sophisticated engine, e.g. for performance purpose.
-    """
-    def compose_sequential(self, left, right):
-        not_composable = (  left.is_consumer()
-                         or right.is_producer()
-                         or left.is_runnable()
-                         or right.is_runnable()
-                         or not right.type_in().is_satisfied_by(left.type_out()))
-
-        if not_composable:
-            raise TypeError("Can't compose %s and %s." % (left, right))
-
-        return SequentialStreamProcessor([left, right])
-
-    def compose_parallel(self, top, bottom):
-        return ParallelStreamProcessor([top, bottom])
-
-StreamProcessor.composition_engine = SimpleCompositionEngine()
+###############################################################################
+#
+# Basic classes for composed stream processors.
+#
+###############################################################################
 
 class ComposedStreamProcessor(StreamProcessor):
     """
@@ -255,13 +250,16 @@ class ComposedStreamProcessor(StreamProcessor):
 
 
 class SequentialStreamProcessor(ComposedStreamProcessor):
+    """
+    A processor that processes it subprocessors sequentially by feeding the
+    output of a previous processor to the input of the next processor.
+    """
     def __init__(self, processors):
         tarr = sequence([p.type_arrow() for p in processors]) 
 
         super(SequentialStreamProcessor, self).__init__( tarr.type_in()
                                                        , tarr.type_out()
                                                        , processors)
-
 
     def get_initial_env(self, *params):
         env = super(SequentialStreamProcessor, self).get_initial_env(*params)
@@ -346,6 +344,9 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
         return Stop(r)
 
 class ParallelStreamProcessor(ComposedStreamProcessor):
+    """
+    A processor that processes it subprocessors in parallel.
+    """
     def __init__(self, processors):
         tin = Type.get(*[p.type_in() for p in processors])
         tout = Type.get(*[p.type_out() for p in processors])
@@ -457,37 +458,8 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
             return Stop(res)
 
         return MayResume(res)
-        
-class SimpleRuntimeEngine(object):
-    """
-    Very simple runtime engine, that loops process until either Stop is reached
-    or StopIteration is thrown.
-    """
-    def run(self, process, params):
-        assert process.is_runnable()
-        assert process.type_init().contains(params)
 
-        upstream = (i for i in [])           
-        def downstream(val):
-            raise RuntimeError("Process should not send a value downstream")
-        
-        res = None
-        env = process.get_initial_env(*params)
-        try:
-            while True:
-                res = process.step(env, upstream, downstream)
-                assert isinstance(res, (Stop, MayResume, Resume))
-                if isinstance(res, Stop):
-                    return res.result
-            
-        except StopIteration:
-            if isinstance(res, (Stop, MayResume)):
-                return res.result
-            raise RuntimeError("Process did not return result.")
-        finally:
-            process.shutdown_env(env)
 
-StreamProcessor.runtime_engine = SimpleRuntimeEngine()
                 
 class EnvAndGen(object):
     def __init__(self, env, gen):
