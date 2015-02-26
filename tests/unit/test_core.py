@@ -296,6 +296,10 @@ class _TestProducer(_TestStreamProcessor):
     def processor(self, producer):
         return producer
 
+    @pytest.fixture
+    def max_amount(self):
+        return 100
+
     def test_isProducer(self, producer):
         assert producer.is_producer()
 
@@ -324,10 +328,17 @@ class _TestConsumer(_TestStreamProcessor):
     def processor(self, consumer):
         return consumer 
 
+    class _NoValue:
+        pass
+
+    @pytest.fixture
+    def result(self):
+        return self._NoValue
+
     def test_isConsumer(self, consumer):
         assert consumer.is_consumer()
 
-    def test_consumesValuesOfType(self, consumer, env_params, test_values):
+    def test_consumesValuesOfType(self, consumer, env_params, test_values, result):
         env = consumer.get_initial_env(*env_params)
         t = consumer.type_in()
 
@@ -345,17 +356,23 @@ class _TestConsumer(_TestStreamProcessor):
             while True:
                 res = consumer.step(env, upstream, downstream)
                 if isinstance(res, Stop):
-                    return
+                    break 
         except Exhausted:
             assert isinstance(res, MayResume)
-            return
         finally:
             consumer.shutdown_env(env)
+
+        if result != self._NoValue and not isinstance(res, Resume):
+            assert result == res.result 
 
 class _TestPipe(_TestStreamProcessor):
     @pytest.fixture
     def processor(self, pipe):
         return pipe 
+
+    @pytest.fixture
+    def max_amount(self):
+        return 100
 
     def test_isPipe(self, pipe):
         assert pipe.is_pipe()
