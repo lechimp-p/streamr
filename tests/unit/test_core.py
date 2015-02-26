@@ -133,6 +133,10 @@ class TestCompositionTyped(object):
         assert pi_any.type_out() != pi_any2.type_in()
         pi = pi_any >> pi_any2
         assert pi.type_out() == pi.type_in()
+
+    def test_crashDueProductIso(self, pr, co):
+        sp = ((pr * pr) * pr) >> (co * (co * co))
+        assert sp.run() == ([10]*10,([10]*10,[10]*10))
         
 
 class TestStreamProcessResults(object):
