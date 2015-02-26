@@ -288,6 +288,13 @@ class _TestStreamProcessor(object):
     def max_amount(self):
         return 100
 
+    class _NoValue:
+        pass
+
+    @pytest.fixture
+    def result(self):
+        return self._NoValue
+
     def test_typeOut(self, processor):
         assert isinstance(processor.type_out(), Type)
 
@@ -337,17 +344,10 @@ class _TestConsumer(_TestStreamProcessor):
     def processor(self, consumer):
         return consumer 
 
-    class _NoValue:
-        pass
-
-    @pytest.fixture
-    def result(self):
-        return self._NoValue
-
     def test_isConsumer(self, consumer):
         assert consumer.is_consumer()
 
-    def test_consumesValuesOfType(self, consumer, env_params, test_values, result):
+    def test_consumesValuesOfType(self, consumer, env_params, max_amount, test_values, result):
         env = consumer.get_initial_env(*env_params)
         t = consumer.type_in()
 
@@ -362,7 +362,9 @@ class _TestConsumer(_TestStreamProcessor):
 
        
         try:
-            while True:
+            count = 0
+            while True and count < max_amount:
+                count += 1
                 res = consumer.step(env, upstream, downstream)
                 if isinstance(res, Stop):
                     break 
@@ -388,7 +390,7 @@ class _TestPipe(_TestStreamProcessor):
     def test_typeOut(self, pipe):
         assert isinstance(pipe.type_out(), Type)
 
-    def test_transformsValuesAccordingToTypes(self, pipe, env_params, test_values, max_amount):
+    def test_transformsValuesAccordingToTypes(self, pipe, env_params, max_amount, test_values, result):
         env = pipe.get_initial_env(*env_params)
         tin = pipe.type_in()
         tout = pipe.type_out()
