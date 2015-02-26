@@ -156,7 +156,9 @@ class ProductType(Type):
 
     @staticmethod
     def get(*types):
-        types = tuple(filter(lambda x : x != unit, types))
+        types = tuple(map(Type.get,
+                        filter(lambda x : x != unit, 
+                            types)))
 
         if len(types) == 0:
             return UnitType.get()
