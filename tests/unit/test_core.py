@@ -405,7 +405,7 @@ class _TestPipe(_TestStreamProcessor):
             assert tout.contains(val)
 
         try:
-            for i in range(0, max_amount):
+            for i in range(0, min(max_amount, len(test_values))):
                 res = pipe.step(env, upstream, downstream)
                 if isinstance(res, Stop):
                     return
