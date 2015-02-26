@@ -33,7 +33,7 @@ upstream until he has enough data or there is no more data in the upstream.
 if "reduce" not in globals():
     from functools import reduce
 
-from .types import Type, ArrowType, ALL
+from .types import Type, ArrowType, ALL, sequence, unit
 
 class StreamProcessor(object):
     """
@@ -107,7 +107,7 @@ class StreamProcessor(object):
         as Resume.
         """
         raise NotImplementedError("Implement StreamProcessor.step for"
-                                  " class %s!" % type(self))
+                                  " %s!" % type(self))
         
     # Engine used for composition
     composition_engine = None
@@ -142,19 +142,26 @@ class StreamProcessor(object):
 
     # Some judgements about the stream processor
 
-    def isProducer(self):
+    def is_producer(self):
         """
         This processor does not consume data from upstream.
         """
-        return self.type_in() == ()    
+        return self.type_in() == () and self.type_out() != ()
 
-    def isConsumer(self):
+    def is_consumer(self):
         """
         This processor does not send data downstream.
         """
-        return self.type_out() == ()
+        return self.type_out() == () and self.type_in() != ()
 
-    def isRunnable(self):
+    def is_pipe(self):
+        """
+        This processor consumes data from upstream and sends data
+        downstream.
+        """
+        return self.type_in() != () and self.type_out() != ()
+
+    def is_runnable(self):
         """
         This processes stream arrow has type () -> ().
         """
@@ -194,42 +201,46 @@ class SimpleCompositionEngine(object):
     Could be switched for a more sophisticated engine, e.g. for performance purpose.
     """
     def compose_sequential(self, left, right):
-        not_composable = (  left.isConsumer()
-                         or right.isProducer()
-                         or left.isRunnable()
-                         or right.isRunnable()
+        not_composable = (  left.is_consumer()
+                         or right.is_producer()
+                         or left.is_runnable()
+                         or right.is_runnable()
                          or not right.type_in().is_satisfied_by(left.type_out()))
 
         if not_composable:
             raise TypeError("Can't compose %s and %s." % (left, right))
 
-        return compose_stream_parts(left, right)
+        return SequentialStreamProcessor([left, right])
 
     def compose_parallel(self, top, bottom):
-        return stack_stream_parts(top, bottom)
+        return ParallelStreamProcessor([top, bottom])
 
 StreamProcessor.composition_engine = SimpleCompositionEngine()
 
-class ComposedStreamProcessor(object):
+class ComposedStreamProcessor(StreamProcessor):
     """
     Mixin for all composed stream processors.
 
     Handles initialisation and shutdown of the sub processors.
     """
-    def __init__(self, types, processors):
+    def __init__(self, type_in, type_out, processors):
         assert ALL(isinstance(p, StreamProcessor) for p in processors)
 
-        if types is not None:
-            super(ComposedStreamProcessor, self).__init__(*types)
+        tinit = Type.get(*[p.type_init() for p in processors])
+        tresult = Type.get(*[p.type_result() for p in processors])
+
+        super(ComposedStreamProcessor, self).__init__(tinit, tresult, type_in, type_out)
 
         self.processors = list(processors)
+        self.amount_procs = len(self.processors)
+        self.amount_result = len(list(filter(lambda x: x.type_result() != (), self.processors)))
  
-    def get_initial_env(self, params):
+    def get_initial_env(self, *params):
         envs = []
         i = 0
         for p in self.processors:
             if p.type_init() is unit:
-                env.append(p.get_initial_env(None))
+                envs.append(p.get_initial_env())
             else:
                 assert p.type_init().contains(params[i])
                 env.append(p.get_initial_env(params[i]))
@@ -243,9 +254,209 @@ class ComposedStreamProcessor(object):
             p.shutdown_env(e)
 
 
-class SequentialStreamProcessor(StreamProcessor):
+class SequentialStreamProcessor(ComposedStreamProcessor):
     def __init__(self, processors):
-        pass
+        tarr = sequence([p.type_arrow() for p in processors]) 
+
+        super(SequentialStreamProcessor, self).__init__( tarr.type_in()
+                                                       , tarr.type_out()
+                                                       , processors)
+
+
+    def get_initial_env(self, *params):
+        env = super(SequentialStreamProcessor, self).get_initial_env(*params)
+        env["caches"] = [[]] * self.amount_procs
+        env["results"] = [()] * self.amount_procs
+        env["exhausted"] = [False] * self.amount_procs
+        return env
+
+    def _downstream(self, env, downstream, i):
+        """
+        Downstream from i'th processor.
+        """
+        assert i < self.amount_procs
+        assert i >= 0
+
+        if i == self.amount_procs - 1:
+            return downstream
+
+        def _downstream(val):
+           env["caches"][i].append(val)
+
+        return _downstream 
+
+    def _upstream(self, env, upstream, downstream, i):
+        """
+        Upstream to i'th processor.
+        """
+        assert i < self.amount_procs
+        assert i >= 0
+
+        if i == 0:
+            return upstream
+
+        def _upstream():
+            us = self._upstream(env, upstream, downstream, i-1)
+            ds = self._downstream(env,downstream,i-1)
+            while True:
+                while len(env["caches"][i-1]) == 0:
+                    if env["exhausted"][i-1]:
+                        raise StopIteration()
+                    p = self.processors[i-1]
+                    res = p.step( env["envs"][i-1], us, ds)
+                    if not isinstance(res, Resume) and p.type_result() != ():
+                        env["results"][i-1] = res.result
+                    if isinstance(res, Stop):
+                        env["exhausted"][i-1] = True
+                while len(env["caches"][i-1]) > 0:
+                    yield env["caches"][i-1].pop(0)
+
+        return _upstream() 
+
+    def _rectified_result(self, env):
+        if self.amount_result == 0:
+            return ()
+        res = list(filter(lambda x: x != (), env["results"]))
+        if self.amount_result == 1:
+            return res[0]
+        return tuple(res)
+        
+
+    def step(self, env, upstream, downstream):
+        res = self.processors[-1].step( env["envs"][-1]
+                                      , self._upstream( env, upstream, downstream
+                                                      , self.amount_procs - 1)
+                                      , self._downstream( env, downstream
+                                                        , self.amount_procs - 1)
+                                      )       
+
+        if isinstance(res, Resume):
+            return Resume()
+
+        env["results"][-1] = res.result
+
+        if isinstance(res, Stop):
+            if len(list(filter(lambda x: x != (), env["results"]))) != self.amount_result:
+                raise RuntimeError("Last stream processor signals stop,"
+                                   " but there are not enough results.")
+
+        r = self._rectified_result(env)
+        if isinstance(res, MayResume):
+            return MayResume(r)
+        return Stop(r)
+
+class ParallelStreamProcessor(ComposedStreamProcessor):
+    def __init__(self, processors):
+        tin = Type.get(*[p.type_in() for p in processors])
+        tout = Type.get(*[p.type_out() for p in processors])
+
+        super(ParallelStreamProcessor, self).__init__(tin, tout, processors)
+
+        self.amount_in = len(list(filter(lambda x: x.type_in() != (), self.processors)))
+        self.amount_out = len(list(filter(lambda x: x.type_out() != (), self.processors)))
+
+    def get_initial_env(self, *params):
+        env = super(ParallelStreamProcessor, self).get_initial_env(*params)
+        env["caches_in"] = [[]] * self.amount_procs
+        env["caches_out"] = [[]] * self.amount_procs
+        return env
+
+    def _downstream(self, env, i):
+        """
+        Downstream from i't processor.
+        """
+        assert i < self.amount_procs
+        assert i >= 0
+
+        def _downstream(val):
+            env["caches_out"][i].append(val)
+        return _downstream
+
+    def _upstream(self, env, upstream, i):
+        """
+        Upstream to i't processor.
+        """
+        assert i < self.amount_procs
+        assert i >= 0
+
+        assert self.processors[i].type_in() != ()
+
+        while True:
+            while len(env["caches_in"][i]) == 0:
+                self._fill_cache_in(env, upstream)
+            while len(env["caches_in"][i]) > 0:
+                yield env["caches_in"][i].pop(0)
+
+    def _fill_cache_in(self, env, upstream):
+        assert self.amount_in > 0
+
+        if self.amount_in == 1:
+            res = [next(upstream)]
+        else:
+            res = list(next(upstream))
+
+        for p,i in zip(self.processors, range(0, self.amount_procs)):
+            if p.type_in() != ():
+                env["caches_in"][i].append(res.pop(0))
+
+    def _flush_cache_out(self, env, downstream):
+        if self.amount_out == 0:
+            return
+
+        resume = True
+        while resume:
+            res = [] 
+            for p,cache in zip(self.processors, env["caches_out"]):  
+                if p.type_out() == ():
+                    continue
+                if len(cache) == 0:
+                    resume = False
+                    break
+                res.append(cache.pop(0))
+            if resume:
+                if self.amount_out == 1:
+                    downstream(res[0])
+                else:
+                    downstream(tuple(res)) 
+
+        for r, cache in zip(res, env["caches_out"]):
+            cache.insert(0, r)
+
+    def _rectify_res(self, res):
+        assert len(res) == self.amount_result
+
+        if self.amount_result == 1:
+            return res[0]
+
+        return tuple(res)
+
+    def step(self, env, upstream, downstream):
+        res = []
+        stop = False
+        must_resume = False
+        for p,i in zip(self.processors, range(0, self.amount_procs)):
+            r = p.step( env["envs"][i]
+                      , self._upstream(env, upstream, i)
+                      , self._downstream(env, i))
+            stop = stop or isinstance(r, Stop)
+            must_resume = must_resume or isinstance(r, Resume)
+            if not isinstance(r, Resume) and p.type_result() != ():
+                res.append(r.result)
+
+        if stop and must_resume:
+            raise RuntimeError("One consumer wants to stop, while another needs to resume.")
+
+        self._flush_cache_out(env, downstream) 
+
+        if must_resume:
+            return Resume()
+
+        res = self._rectify_res(res)
+
+        if stop:
+            return Stop(res)
+
+        return MayResume(res)
         
 class SimpleRuntimeEngine(object):
     """
@@ -253,7 +464,7 @@ class SimpleRuntimeEngine(object):
     or StopIteration is thrown.
     """
     def run(self, process, params):
-        assert process.isRunnable()
+        assert process.is_runnable()
         assert process.type_init().contains(params)
 
         upstream = (i for i in [])           
@@ -296,7 +507,7 @@ class Producer(StreamProcessor):
             env = EnvAndGen(env, self.produce(env))
 
         downstream(next(env.gen))
-        return MayResume(None)
+        return MayResume(())
 
     def produce(self, env):
         """
@@ -351,10 +562,10 @@ class Pipe(StreamProcessor):
 
     def step(self, env, upstream, downstream):
         if not isinstance(env, EnvAndGen):
-            env = EnvAndGen(env, self.transform(upstream))
+            env = EnvAndGen(env, self.transform(env, upstream))
 
         downstream(next(env.gen))
-        return MayResume(None)        
+        return MayResume(())        
 
     def transform(self, env, upstream):
         """

@@ -249,8 +249,21 @@ class ArrowType(Type):
 
         return ArrowType.get(self.l_type, other(self.r_type))
 
+    def type_in(self):
+        return self.l_type
+    def type_out(self):
+        return self.r_type
+
     def __str__(self):
         return "(%s -> %s)" % (self.l_type, self.r_type)
+
+def sequence(arrows):
+    cur = arrows[0] 
+    
+    for arr in arrows[1:]:
+        cur = cur.compose_with(arr)
+
+    return cur
 
 class TypeVar(Type):
     """

@@ -80,19 +80,19 @@ class TestCompositionBase(object):
 
     # Pi >> Pi = Pi
     def test_PiCompPi(self, pi):
-        assert isinstance(pi >> pi, Pipe)
+        assert (pi >> pi).is_pipe()
 
     # Pr >> Pi = Pr
     def test_PrCompPi(self, pr, pi):
-        assert isinstance(pr >> pi, Producer)
+        assert (pr >> pi).is_producer()
 
     # Pi >> Co = Co
     def test_PiCompCo(self, pi, co):
-        assert isinstance(pi >> co, Consumer)
+        assert (pi >> co).is_consumer()
 
     # Pr >> Co = SP
     def test_PrCompCo(self, pr, co):
-        assert isinstance(pr >> co, StreamProcess)
+        assert (pr >> co).is_runnable()
 
     # SP >> any = error
     def test_SPCompAny(self, all_sps, pr, co):
@@ -149,54 +149,69 @@ class TestStacking(object):
     def test_stackProducers(self, pr, pr_str):
         p = pr * pr_str
 
-        assert isinstance(p, Producer)
+        assert p.is_producer()
         assert p.type_out() == pr.type_out() * pr_str.type_out() 
 
     def test_stackPipes(self, pi, pi_any):
         p = pi * pi_any
 
-        assert isinstance(p, Pipe)
+        assert p.is_pipe()
         assert p.type_in() == pi.type_in() * pi_any.type_in()
         assert p.type_out() == pi.type_out() * pi_any.type_out()
 
     def test_stackConsumers(self, co, co_str):
         c = co * co_str
 
-        assert isinstance(c, Consumer)
+        assert c.is_consumer()
         assert c.type_in() == co.type_in() * co_str.type_in()
 
     def test_stackPipeConsumer(self, pi, co):
         p = pi * co
 
-        assert isinstance(p, MixedStreamProcessor)
+        assert not p.is_producer()
+        assert not p.is_consumer()
+        assert not p.is_runnable()
+        assert p.is_pipe()
         assert p.type_in() == pi.type_in() * co.type_in()
         assert p.type_out() == pi.type_out()
 
     def test_stackProducerPipe(self, pr, pi):
         p = pr * pi
 
-        assert isinstance(p, MixedStreamProcessor)
+        assert not p.is_producer()
+        assert not p.is_consumer()
+        assert not p.is_runnable()
+        assert p.is_pipe()
         assert p.type_in() == pi.type_in()
         assert p.type_out() == pr.type_out() * pi.type_in()
 
     def test_stackStackedProducerAndMixedStack1(self, pr, pi, co):
         p = (pr * pr) >> (pi * co)
 
-        assert isinstance(p, MixedStreamProcessor)
+        assert p.is_producer()
+        assert not p.is_consumer()
+        assert not p.is_runnable()
+        assert not p.is_pipe()
         assert p.type_in() is unit 
         assert p.type_out() == pi.type_out()
 
     def test_stackStackedProducerAndMixedStack2(self, pr, pi, co):
         p = (pr * pr * pr) >> (pi * pi * co)
 
-        assert isinstance(p, MixedStreamProcessor)
+        assert p.is_producer()
+        assert not p.is_consumer()
+        assert not p.is_runnable()
+        assert not p.is_pipe()
         assert p.type_in() is unit 
         assert p.type_out() == pi.type_out() * pi.type_out()
 
     def test_stackStackedProducerAndMixedStack3(self, pr, pi, co):
         p = (pr * pr * pr) >> (pi * pi * co) >> (pi * co)
 
-        assert isinstance(p, MixedStreamProcessor)
+        assert p.is_producer()
+        assert not p.is_consumer()
+        assert not p.is_runnable()
+        assert not p.is_pipe()
         assert p.type_in() is unit 
         assert p.type_out() == pi.type_out()
 
@@ -206,7 +221,15 @@ class TestStacking(object):
 
     def test_result2(self, pr, pi, co):
         sp = (pr * pr) >> (pi * co) >> co
-        assert sp.run() == ([20]*10, [10]*10)
+        assert sp.run() == ([10]*10, [20]*10)
+
+    def test_result2a(self, pr, co):
+        sp = (pr * (pr >> co)) >> co
+        assert sp.run() == ([10]*10, [10]*10)
+
+    def test_result2b(self, pr, co):
+        sp = (pr >> co) * (pr >> co)
+        assert sp.run() == ([10]*10, [10]*10)
 
     def test_result3(self, pr, pi, co):
         sp = pr >> (pi * pr) >> (co * co)
@@ -218,24 +241,24 @@ class TestStacking(object):
 
     def test_result5(self, pr, pi, co):
         sp = (pr * pr * pr) >> (pi * pi * co) >> (pi * co) >> co
-        assert sp.run() == ([40]*10, [20]*10, [10]*10)
+        assert sp.run() == (([10]*10, [20]*10), [40]*10)
 
     def test_result6(self, pr, pi, co):
         sp = pr >> (pi * pr) >> (pi * pi * pr) >> (co * co * co)
-        assert sp.run() == ([40]*10, [20]*10, [10]*10)
+        assert sp.run() == (([40]*10, [20]*10), [10]*10)
 
     def test_result7(self, pr, pi, co):
         sp = (pr * pr * pr) >> (co * pi * pi) >> (co * pi) >> co
-        assert sp.run() == ([10]*10, [20]*10, [40]*10)
+        assert sp.run() == (([10]*10, [20]*10), [40]*10)
 
     def test_result8(self, pr, pi, co):
         sp = pr >> (pr * pi) >> (pr * pi * pi) >> (co * co * co)
-        assert sp.run() == ([10]*10, [20]*10, [40]*10)
+        assert sp.run() == (([10]*10, [20]*10), [40]*10)
 
     def test_result9(self, pr, pi, co):
         sp = pr >> (pr * pi * pr) >> (pi * co * pi) >> (co * co)
 
-        assert sp.run() == ([20]*10, [20]*10, [20]*10)
+        assert sp.run() == ([20]*10, ([20]*10, [20]*10))
 
 
 
@@ -249,58 +272,90 @@ class TestStacking(object):
 #
 ###############################################################################
 
-class _TestProducer(object):
-    def test_isInstanceOfProducer(self, producer):
-        assert isinstance(producer, Producer) 
+class _TestStreamProcessor(object):
+    def test_typeOut(self, processor):
+        assert isinstance(processor.type_out(), Type)
 
-    def test_typeOut(self, producer):
-        assert isinstance(producer.type_out(), Type)
+    def test_typeIn(self, processor):
+        assert isinstance(processor.type_in(), Type)
+
+    def test_typeInit(self, processor):
+        assert isinstance(processor.type_init(), Type)
+
+    def test_typeResult(self, processor):
+        assert isinstance(processor.type_result(), Type)
+
+    def test_typeArrow(self, processor):
+        assert processor.type_arrow() == ArrowType.get( processor.type_in()
+                                                      , processor.type_out())
+
+class _TestProducer(_TestStreamProcessor):
+    @pytest.fixture
+    def processor(self, producer):
+        return producer
+
+    def test_isProducer(self, producer):
+        assert producer.is_producer()
 
     def test_typeOutIsNotVariable(self, producer):
         assert not producer.type_out().is_variable()
 
-    def test_typeOfProducedValues(self, producer, max_amount):
-        env = producer.get_initial_env()
+    def test_typeOfProducedValues(self, producer, env_params, max_amount):
+        env = producer.get_initial_env(*env_params)
         t = producer.type_out()
         count = 0
-        for var in producer.produce(env):
-            assert t.contains(var) 
 
-            count += 1
-            if count > max_amount:
-                return 
+        def downstream(val):
+            assert t.contains(val)
 
-class _TestConsumer(object):
-    def test_isInstanceOfConsumer(self, consumer):
-        assert isinstance(consumer, Consumer)
-
-    def test_typeIn(self, consumer):
-        assert isinstance(consumer.type_in(), Type)
-
-    def test_consumesValuesOfType(self, consumer, test_values):
-        env = consumer.get_initial_env()
-        t = consumer.type_in()
-        gen = (i for i in test_values)
         def upstream():
-            v = next(gen)
-            assert t.contains(v)
-            yield v
+            assert False
+            yield None
 
-        us = upstream()
-        
-        res = None
-        while True:
-            try:
-                res = consumer.consume(env, us)
+        for i in range(0, max_amount):
+            producer.step(env, upstream, downstream)
+
+        producer.shutdown_env(env)
+
+class _TestConsumer(_TestStreamProcessor):
+    @pytest.fixture
+    def processor(self, consumer):
+        return consumer 
+
+    def test_isConsumer(self, consumer):
+        assert consumer.is_consumer()
+
+    def test_consumesValuesOfType(self, consumer, env_params, test_values):
+        env = consumer.get_initial_env(*env_params)
+        t = consumer.type_in()
+
+        def upstream():
+            for v in test_values:
+                assert t.contains(v)
+                yield v
+
+        def downstream(val):
+            assert False
+
+       
+        try:
+            while True:
+                res = consumer.step(env, upstream(), downstream)
                 if isinstance(res, Stop):
                     return
-            except StopIteration:
-                assert isinstance(res, MayResume)
-                return
+        except StopIteration:
+            assert isinstance(res, MayResume)
+            return
+        finally:
+            consumer.shutdown_env(env)
 
-class _TestPipe(object):
-    def test_isInstanceOfPipe(self, pipe):
-        assert isinstance(pipe, Pipe)
+class _TestPipe(_TestStreamProcessor):
+    @pytest.fixture
+    def processor(self, pipe):
+        return pipe 
+
+    def test_isPipe(self, pipe):
+        assert pipe.is_pipe()
 
     def test_typeIn(self, pipe):
         assert isinstance(pipe.type_in(), Type)
@@ -308,24 +363,28 @@ class _TestPipe(object):
     def test_typeOut(self, pipe):
         assert isinstance(pipe.type_out(), Type)
 
-    def test_transformsValuesAccordingToTypes(self, pipe, test_values, max_amount):
-        env = pipe.get_initial_env()
+    def test_transformsValuesAccordingToTypes(self, pipe, env_params, test_values, max_amount):
+        env = pipe.get_initial_env(*env_params)
         tin = pipe.type_in()
         tout = pipe.type_out()
-        gen = (i for i in test_values)
         def upstream():
-            v = next(gen)
-            assert tin.contains(v)
-            yield v
-        
-        count = 0
-        for var in pipe.transform(env, upstream()):
-            assert tout.contains(var)
+            for v in test_values:
+                assert tin.contains(v)
+                yield v
 
-            count += 1
-            if count > max_amount:
-                return
+        def downstream(val):
+            assert tout.contains(val)
 
+        try:
+            for i in range(0, max_amount):
+                res = pipe.step(env, upstream(), downstream)
+                if isinstance(res, Stop):
+                    return
+        except StopIteration:
+            assert isinstance(res, MayResume)
+            return
+        finally:
+            pipe.shutdown_env(env)
 
 ###############################################################################
 #
@@ -342,6 +401,10 @@ class TestAppendPipe(_TestProducer):
     def max_amount(self):
         return 10   
 
+    @pytest.fixture
+    def env_params(self):
+        return()
+
 def TestPrependPipe(_TestConsumer):
     @pytest.fixture
     def consumer(self, pi, co):
@@ -350,6 +413,10 @@ def TestPrependPipe(_TestConsumer):
     @pytest.fixture
     def test_values(self):
         return range(0, 10)
+
+    @pytest.fixture
+    def env_params(self):
+        return()
 
 class TestFusePipe(_TestPipe):
     @pytest.fixture
@@ -363,6 +430,10 @@ class TestFusePipe(_TestPipe):
     @pytest.fixture
     def max_amount(self):
         return 10   
+
+    @pytest.fixture
+    def env_params(self):
+        return()
 
 ###############################################################################
 #
@@ -383,6 +454,10 @@ class TestStackPipe(_TestPipe):
     def max_amount(self):
         return 10   
 
+    @pytest.fixture
+    def env_params(self):
+        return()
+
 class TestStackProducer(_TestProducer):
     @pytest.fixture
     def producer(self, pr):
@@ -392,6 +467,10 @@ class TestStackProducer(_TestProducer):
     def max_amount(self):
         return 10   
 
+    @pytest.fixture
+    def env_params(self):
+        return()
+
 class TestStackConsumer(_TestConsumer):
     @pytest.fixture
     def consumer(self, co):
@@ -400,6 +479,10 @@ class TestStackConsumer(_TestConsumer):
     @pytest.fixture
     def test_values(self):
         return [(i,i) for i in range(0, 10)]
+
+    @pytest.fixture
+    def env_params(self):
+        return()
 
 ###############################################################################
 #
@@ -411,9 +494,16 @@ class MockProducer(Producer):
     def __init__(self, ttype, value):
         super(MockProducer, self).__init__((), ttype)
         self.value = value
+
+    def get_initial_env(self):
+        return 0
+
     def produce(self, env):
         while True:
+            if env >= 100:
+                raise RuntimeError("I did not expect this to run that long...")
             yield self.value
+            env += 1
 
 class TestMockProducer(_TestProducer):
     @pytest.fixture
@@ -423,6 +513,10 @@ class TestMockProducer(_TestProducer):
     @pytest.fixture
     def max_amount(self):
         return 10
+
+    @pytest.fixture
+    def env_params(self):
+        return()
 
 class MockConsumer(Consumer):
     def __init__(self, ttype, max_amount = None):
@@ -452,6 +546,10 @@ class TestMockConsumer(Consumer):
     def test_values(self):
         return range(0, 10)
 
+    @pytest.fixture
+    def env_params(self):
+        return()
+
 class MockPipe(Pipe):
     def __init__(self, type_in, type_out, transform = None):
         super(MockPipe, self).__init__((), type_in, type_out)
@@ -472,3 +570,7 @@ class TestMockPipe(_TestPipe):
     @pytest.fixture
     def max_amount(self):
         return 10
+
+    @pytest.fixture
+    def env_params(self):
+        return()
