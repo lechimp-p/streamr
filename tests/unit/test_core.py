@@ -134,9 +134,10 @@ class TestCompositionTyped(object):
         pi = pi_any >> pi_any2
         assert pi.type_out() == pi.type_in()
 
-    def test_crashDueProductIso(self, pr, co):
-        sp = ((pr * pr) * pr) >> (co * (co * co))
-        assert sp.run() == ([10]*10,([10]*10,[10]*10))
+    def test_crashDueNoProductIso(self, pr, co):
+        with pytest.raises(TypeError) as excinfo:
+            sp = ((pr * pr) * pr) >> (co * (co * co))
+        assert "compose" in str(excinfo.value)
         
 
 class TestStreamProcessResults(object):
