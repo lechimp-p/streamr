@@ -120,6 +120,10 @@ class ConstP(Producer):
         send(env)
         return MayResume()
 
+class ListP(Producer):
+    def __init__(self, vlist = _NoValue, item_type = _NoValue):
+        pass
+
 class NonEnvPipe(Pipe):
     def __init__(self, type_in, type_out, fun):
         self._type_in = type_in

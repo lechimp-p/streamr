@@ -2,7 +2,8 @@
 
 import pytest
 
-from streamr import Producer, Consumer, Pipe, MayResume, Stop, Resume, ConstP
+from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, ConstP,
+                    ListP)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
 from streamr.types import Type
 
@@ -152,3 +153,50 @@ class TestConstProducer(_TestProducer):
             c2.get_initial_env()
         assert "value" in str(excinfo.value)
         assert c2.get_initial_env(num) == num
+
+class TestListProducer(_TestProducer):
+    @pytest.fixture(params =
+        [ (ListP(vlist = [10]*10), [10]*10, ())
+        , (ListP(item_type = int), [10]*10, ([10]*10,))
+        ])
+    def producers(self, request, max_amount):
+        par = list(request.param)
+        par[1] = [par[1]] * max_amount
+        return par
+
+    @pytest.fixture
+    def max_amount(self):
+        return 10
+
+    @pytest.fixture
+    def producer(self, producers):
+        return producers[0]
+
+    @pytest.fixture
+    def env_params(self, producers):
+        return producers[2]
+
+    @pytest.fixture
+    def result(self, producers):
+        return producers[1]
+
+    def test_eitherListOrItemType(self):
+        with pytest.raises(TypeError) as excinfo:
+            ListP()
+        assert "item_type" in str(excinfo.value)
+
+    def test_valueConstructorOrEnv(self):
+        l = [10]
+        c1 = ConstP(l)
+        assert c1.type_out() == Type.get(int)
+        assert c1.get_initial_env() == l 
+        with pytest.raises(TypeError) as excinfo:
+           c1.get_initial_env(l) 
+        assert "constructor" in str(excinfo.value)
+
+        c2 = ConstP(value_type = int)
+        assert c2.type_out() == Type.get(int)
+        with pytest.raises(TypeError) as excinfo:
+            c2.get_initial_env()
+        assert "list" in str(excinfo.value)
+        assert c2.get_initial_env(l) == l
