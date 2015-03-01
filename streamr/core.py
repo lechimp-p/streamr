@@ -236,7 +236,7 @@ class ComposedStreamProcessor(StreamProcessor):
                 envs.append(p.get_initial_env())
             else:
                 assert p.type_init().contains(params[i])
-                env.append(p.get_initial_env(params[i]))
+                envs.append(p.get_initial_env(params[i]))
                 i += 1
                 assert i < len(params)
 
