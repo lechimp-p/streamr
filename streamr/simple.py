@@ -142,7 +142,7 @@ class ListP(Producer):
         if vlist is _NoValue:
             self.vlist = vlist
             self.item_type = Type.get(item_type)
-            super(ListP, self).__init__([item_type], item_type)
+            super(ListP, self).__init__((), item_type)
         else:
             if len(vlist) == 0:
                 raise ValueError("vlist is empty list.")
