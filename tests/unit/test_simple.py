@@ -3,9 +3,9 @@
 import pytest
 
 from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, ConstP,
-                    ListP)
+                    ListP, ListC)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
-from streamr.types import Type
+from streamr.types import Type, unit
 
 ###############################################################################
 #
@@ -212,6 +212,10 @@ class TestListProducer(_TestProducer):
             ListP([1, "foo"])
         assert "item" in str(excinfo.value)
 
+    def test_constWithListHashUnitInitType(self):
+        p = ListP([10]*10)
+        assert p.type_init() == unit
+
 
 class TestListConsumer(_TestConsumer):
     @pytest.fixture( params = ["result", "append"])
@@ -233,7 +237,7 @@ class TestListConsumer(_TestConsumer):
             return ()
 
     @pytest.fixture
-    def test_values(self, style):
+    def test_values(self, style, max_amount):
         return [10] * max_amount
 
     def test_append(self):
