@@ -154,6 +154,7 @@ class TestConstProducer(_TestProducer):
         assert "value" in str(excinfo.value)
         assert c2.get_initial_env(num) == num
 
+
 class TestListProducer(_TestProducer):
     @pytest.fixture(params =
         [ (ListP(vlist = [10]*10), [10]*10, ())
@@ -210,3 +211,38 @@ class TestListProducer(_TestProducer):
         with pytest.raises(TypeError) as excinfo:
             ListP([1, "foo"])
         assert "item" in str(excinfo.value)
+
+
+class TestListConsumer(_TestConsumer):
+    @pytest.fixture( params = ["result", "append"])
+    def style(self, request):
+        return request.param
+
+    @pytest.fixture
+    def consumer(self, style):
+        if style == "result":
+            return ListC()
+        if style == "append":
+            return ListC([])
+
+    @pytest.fixture
+    def result(self, style, max_amount):
+        if style == "result":
+            return [10] * max_amount
+        if style == "append":
+            return ()
+
+    @pytest.fixture
+    def test_values(self, style):
+        return [10] * max_amount
+
+    def test_append(self):
+        l = []
+        c = ListC(l)
+        inp = [10] * 10
+
+        sp = ListP(inp) >> c
+        sp.run()
+
+        assert l == inp 
+
