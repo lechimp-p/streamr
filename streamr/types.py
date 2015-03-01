@@ -51,7 +51,7 @@ class Type(object):
     def __gt__(self, other):
         return Type.engine.gt(self, other)
     def __call__(self, other):
-        return Type.engine.apply(self, other)
+        return Type.engine.apply(self, other, {})
     def __mul__(self, other):
         """
         Create a product type from to other types.
@@ -257,14 +257,22 @@ class ArrowType(Type):
 
         return ArrowType.cache[(l_type, r_type)]
 
-    def compose_with(self, other):
+    def compose_with(self, other, replacements = None):
         """
         Get the type of the composition of this arrow type with another arrow type.
         """
         if not isinstance(other, ArrowType):
             raise TypeError("Expected arrow type, not '%s'" % other)
 
-        return ArrowType.get(self.l_type, other(self.r_type))
+        if replacements is None:
+            replacements = {}
+
+        r_type = Type.engine.apply(other, self.r_type, replacements)
+        l_type = self.l_type
+        for key, value in replacements.items():
+            l_type = Type.engine.replace(l_type, key, value) 
+
+        return ArrowType.get(l_type, r_type)
 
     def type_in(self):
         return self.l_type
@@ -373,12 +381,16 @@ class TypeEngine(object):
 
         return False
 
-    def apply(self, l, r):
+    def apply(self, l, r, replacements):
         l,r = self._toType(l,r)
         if not isinstance(l, ArrowType):
             raise ValueError("Can't call non arrow type.")
 
+        if not l.l_type.is_satisfied_by(r):
+            raise TypeError("Can't compose '%s' and '%s'" % (l,r))
+
         if isinstance(l.l_type, TypeVar):
+            replacements[l.l_type] = r
             return self.replace(l.r_type, l.l_type, r)
 
         if l.l_type > r:
