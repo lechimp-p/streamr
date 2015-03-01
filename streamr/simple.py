@@ -142,7 +142,7 @@ class ListP(Producer):
         if vlist is _NoValue:
             self.vlist = vlist
             self.item_type = Type.get(item_type)
-            super(ListP, self).__init__((), item_type)
+            super(ListP, self).__init__([item_type], item_type)
         else:
             if len(vlist) == 0:
                 raise ValueError("vlist is empty list.")
@@ -150,7 +150,7 @@ class ListP(Producer):
             item_type = self._getItemType(vlist)
             self._checkList(vlist, item_type)
             self.vlist = list(vlist)
-            super(ListP, self).__init__([item_type], item_type)
+            super(ListP, self).__init__((), item_type)
 
     @staticmethod
     def _getItemType(vlist):
@@ -188,6 +188,34 @@ class ListP(Producer):
             return Stop()        
 
         return MayResume()
+
+
+class ListC(Consumer):
+    """
+    Puts consumed values to a list.
+
+    Either appends to the list given in the constructor or creates a fresh list 
+    in get_initial_env.
+    """
+    def __init__(self, append_to = None):
+        tvar = Type.get()
+        self.append_to = append_to
+        if append_to is None:
+            super(ListC, self).__init__((), [tvar], tvar)
+        else:
+            super(ListC, self).__init__((), (), tvar)
+
+    def get_initial_env(self):
+        if self.append_to is None:
+            return []
+
+    def consume(self, env, await):
+        if self.append_to is None:
+            env.append(await())
+            return MayResume(env)
+        self.append_to.append(await())
+        return MayResume()
+
 
 
 class NonEnvPipe(Pipe):

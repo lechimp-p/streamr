@@ -161,9 +161,7 @@ class TestListProducer(_TestProducer):
         , (ListP(item_type = int), [10]*10, ([10]*10,))
         ])
     def producers(self, request, max_amount):
-        par = list(request.param)
-        par[1] = [par[1]] * max_amount
-        return par
+        return request.param
 
     @pytest.fixture
     def max_amount(self):

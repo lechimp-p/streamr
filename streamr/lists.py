@@ -2,24 +2,6 @@
 
 from .base import Producer, Consumer
 
-class ListP(Producer):
-    def __init__(self, type, list):
-        self.type = type
-        self.list = list
-        self.length = len(list)
-
-    def type_out(self):
-        return self.type
-
-    def get_initial_env(self):
-        return None
-    def shutdown_env(self, env):
-        pass
-
-    def produce(self, env):
-        for i in self.list:
-            yield i
-
 class ListC(Consumer):
     def __init__(self, type, amount = None):
         self.type = type
