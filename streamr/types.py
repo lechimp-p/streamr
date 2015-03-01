@@ -1,7 +1,7 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
 """
-# Type checking and inference
+# Type checking
 
 To maintain type safety when writing streaming pipelines the parts of the 
 pipelines are typed. On construction of a pipeline it should be possible to 
@@ -322,7 +322,7 @@ unit = UnitType.get()
 
 class TypeEngine(object):
     """
-    Engine that does type checking and inference.
+    Engine that does type checking.
     """
     def lt(self, l, r):
         l,r = self._toType(l,r)
