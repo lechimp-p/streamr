@@ -278,7 +278,5 @@ class SimpleRuntimeEngine(object):
         return tuple(res)
 
 
-
-
 StreamProcessor.runtime_engine = SimpleRuntimeEngine()
 
