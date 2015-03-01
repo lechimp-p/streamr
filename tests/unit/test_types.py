@@ -293,7 +293,41 @@ class TestArrowType(object):
         t3 = ArrowType.get(other, base)
 
         assert t1.compose_with(t2) == t3
+
+    def test_composition2(self, base):
+        t1 = Type.get()
+        t2 = ArrowType.get(t1, t1)
+        t3 = ArrowType.get(base, base)
+
+        t4 = t2.compose_with(t3)
+        assert t4 == t3
+
+    def test_composition3(self, base, other):
+        t1 = ArrowType.get(base, base)
+        t2 = ArrowType.get(other, other)
         
+        with pytest.raises(TypeError) as excinfo:
+            t1.compose_with(t2)
+        assert "compose" in str(excinfo.value)
+
+    def test_composition4(self, base, other):
+        v1 = Type.get()
+        v2 = Type.get()
+        t1 = ArrowType.get(v1, (v1, base))
+        t2 = ArrowType.get((other, v2), v2)
+
+        t3 = t1.compose_with(t2)
+        assert t3 == ArrowType(other, base)
+
+    def test_composition_replacements(self, base):
+        t1 = Type.get()
+        t2 = ArrowType.get(t1, t1)
+        t3 = ArrowType.get(base, base)
+
+        repl = {}
+        t4 = t2.compose_with(t3)
+        assert repl == { t1 : base }
+
 
 class TestTypeVar(object):
     def test_uniqueness(self, base):
