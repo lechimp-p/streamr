@@ -81,6 +81,10 @@ class TestPyTypes(object):
         assert base.contains(sub_inst)
         assert not base.contains(other_inst)
 
+    def test_containsIn(self):
+        t1 = Type.get(int)
+        assert t1.contains(10)
+
 
 class TestProductTypes(object):
     def test_comparison1(self, base, sub):
@@ -205,10 +209,6 @@ class TestProductTypes(object):
         assert t3.deconstruct(p3) == l
 
 
-
-
-
-
 class TestListTypes(object):
     def test_comparison(self, base, sub, other):
         t1 = Type.get([base])
@@ -236,6 +236,7 @@ class TestListTypes(object):
         assert t.contains([base_inst, base_inst])
         assert not t.contains([other_inst])
         assert not t.contains([base_inst, other_inst])
+
 
 class TestArrowType(object):
     def test_comparison1(self, base):
@@ -371,6 +372,7 @@ class TestApplicationType(object):
         app = fun(base)
 
         assert app == (base, other)
+
 
 class TestUnitType(object):
     def test_hasCorrectClass(self, unit):
