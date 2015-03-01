@@ -248,3 +248,16 @@ class TestListConsumer(_TestConsumer):
 
         assert l == inp 
 
+    def test_replaceResultType(self):
+        c = ListC() # List consumes values and results
+                    # in a list of those values. Yet
+                    # is has no definite type...
+        assert c.type_in().is_variable()
+
+        p = ConstP(10)
+        assert p.type_out() == int
+        
+        sp = p >> c
+        assert sp.type_result() == [int]
+        
+
