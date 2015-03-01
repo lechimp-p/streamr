@@ -104,17 +104,17 @@ class ConstP(Producer):
         else:
             super(ConstP, self).__init__(value_type, value_type)
 
-    def get_initial_env(self, value = _NoValue):
+    def get_initial_env(self, *value):
         if self.value is not _NoValue:
-            if value is not _NoValue:
+            if len(value) != 0:
                 raise TypeError("Value already passed in constructor.")
             return self.value
 
-        if not self.type_init().contains(value):
+        if len(value) != 1 or not self.type_init().contains(value[0]):
             raise TypeError("Expected value of type '%s' not"
                             " '%s'" % (self.type_init(), value))
 
-        return value 
+        return value[0]
 
     def produce(self, env, send):
         send(env)
