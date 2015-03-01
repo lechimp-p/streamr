@@ -76,7 +76,7 @@ class Pipe(StreamProcessor):
 #
 ###############################################################################
 
-class _NoValue:
+class _NoValue(object):
     """ 
     None could be some value, so we need something else to mark a non value.
     """
