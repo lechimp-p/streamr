@@ -187,16 +187,26 @@ class TestListProducer(_TestProducer):
 
     def test_valueConstructorOrEnv(self):
         l = [10]
-        c1 = ConstP(l)
+        c1 = ListP(l)
         assert c1.type_out() == Type.get(int)
-        assert c1.get_initial_env() == l 
+        assert c1.get_initial_env()
         with pytest.raises(TypeError) as excinfo:
            c1.get_initial_env(l) 
         assert "constructor" in str(excinfo.value)
 
-        c2 = ConstP(value_type = int)
+        c2 = ListP(item_type = int)
         assert c2.type_out() == Type.get(int)
         with pytest.raises(TypeError) as excinfo:
             c2.get_initial_env()
         assert "list" in str(excinfo.value)
-        assert c2.get_initial_env(l) == l
+        assert c2.get_initial_env(l)
+
+    def test_noEmptyListConstructor(self):
+        with pytest.raises(ValueError) as excinfo:
+            ListP([])
+        assert "empty" in str(excinfo.value)
+
+    def test_noMixedTypesConstructor(self):
+        with pytest.raises(TypeError) as excinfo:
+            ListP([1, "foo"])
+        assert "item" in str(excinfo.value)

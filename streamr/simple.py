@@ -1,6 +1,7 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
 from .core import StreamProcessor, Stop, Resume, MayResume, Exhausted 
+from .types import Type
 
 ###############################################################################
 #
@@ -121,8 +122,73 @@ class ConstP(Producer):
         return MayResume()
 
 class ListP(Producer):
+    """
+    The ListProducer sends the values from a list downstream.
+
+    The list could either be given to the constructor or get_initial_env.
+    """
     def __init__(self, vlist = _NoValue, item_type = _NoValue):
-        pass
+        """
+        Pass a list of values as vlist or the type of items the list should
+        contain, if the list of values should be given to get_initial_env.
+
+        Throws, when vlist contains values of different types.
+
+        Makes a copy of the supplied list.
+        """
+        if vlist is _NoValue and item_type is _NoValue:
+            raise TypeError("Either pass value or item_type.")
+
+        if vlist is _NoValue:
+            self.vlist = vlist
+            self.item_type = Type.get(item_type)
+            super(ListP, self).__init__([item_type], item_type)
+        else:
+            if len(vlist) == 0:
+                raise ValueError("vlist is empty list.")
+
+            item_type = self._getItemType(vlist)
+            self._checkList(vlist, item_type)
+            self.vlist = list(vlist)
+            super(ListP, self).__init__([item_type], item_type)
+
+    @staticmethod
+    def _getItemType(vlist):
+        return Type.get(type(vlist[0]))
+
+    @staticmethod
+    def _checkList(vlist, item_type):
+        for v in vlist:
+            if not item_type.contains(v):
+                raise TypeError("Expected item of type '%s', got '%s'" 
+                                % (item_type, v))
+
+    def get_initial_env(self, *vlist):
+        if self.vlist is not _NoValue:
+            if len(vlist) != 0:
+                raise TypeError("Value already passed in constructor.")
+            vlist = self.vlist
+        else:
+            if len(vlist) != 1 or not self.type_init().contains(vlist[0]):
+                raise TypeError("Expected list of type '%s' not"
+                                " '%s'" % (self.type_init(), vlist))
+            vlist = list(vlist[0])
+            self._checkList(vlist, self.item_type)
+
+        return { "index" : 0, "list" : vlist, "len" : len(vlist) }
+
+    def produce(self, env, send):
+        if env["index"] >= env["len"]:
+            raise Exhausted()
+
+        send(env["list"][env["index"]])
+        env["index"] += 1
+
+        if env["index"] == env["len"]:
+            return Stop()        
+
+        return MayResume()
+
 
 class NonEnvPipe(Pipe):
     def __init__(self, type_in, type_out, fun):
