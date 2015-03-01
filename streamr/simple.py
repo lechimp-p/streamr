@@ -2,6 +2,12 @@
 
 from .core import StreamProcessor, Stop, Resume, MayResume, Exhausted 
 
+###############################################################################
+#
+# Some classes that simplify the usage of StreamProcessor
+#
+###############################################################################
+
 class Producer(StreamProcessor):
     """
     A producer is the source for a stream, that is, it produces new data for
@@ -63,22 +69,56 @@ class Pipe(StreamProcessor):
         raise NotImplementedError("Pipe::transform: implement "
                                   "me for class %s!" % type(self))
 
-class RepeatP(Producer):
-    def __init__(self, value):
+
+###############################################################################
+#
+# Some processors to perform simple and common tasks. 
+#
+###############################################################################
+
+class _NoValue:
+    """ 
+    None could be some value, so we need something else to mark a non value.
+    """
+    pass
+
+
+class ConstP(Producer):
+    """
+    A const producer sends a custom value downstream infinitely.
+
+    The value to be produced could either be given to the constructor
+    or set via get_initial_env.
+    """
+    def __init__(self, value = _NoValue, value_type = _NoValue):
+        """
+        Either pass a value for the const value to be produced or
+        a type of the value if the value should be set via get_initial_env.
+        """
+        if value is _NoValue and value_type is _NoValue:
+            raise TypeError("Either pass value or value_type.")
+
         self.value = value
-        self.type = type(value)
+        if value is not _NoValue:
+            super(ConstP, self).__init__((), type(value))
+        else:
+            super(ConstP, self).__init__(value_type, value_type)
 
-    def type_out(self):
-        return self.type
+    def get_initial_env(self, value = _NoValue):
+        if self.value is not _NoValue:
+            if value is not _NoValue:
+                raise TypeError("Value already passed in constructor.")
+            return self.value
 
-    def get_initial_env(self):
-        return None
-    def shutdown_env(self, env):
-        pass
+        if not self.type_init().contains(value):
+            raise TypeError("Expected value of type '%s' not"
+                            " '%s'" % (self.type_init(), value))
 
-    def produce(self, env):
-        while True:
-            yield self.value
+        return value 
+
+    def produce(self, env, send):
+        send(env)
+        return MayResume()
 
 class NonEnvPipe(Pipe):
     def __init__(self, type_in, type_out, fun):

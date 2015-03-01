@@ -268,11 +268,6 @@ class TestStacking(object):
         assert sp.run() == ([20]*10, ([20]*10, [20]*10))
 
 
-
-
-    
-
-
 ###############################################################################
 #
 # Base classes for tests on stream parts.
@@ -322,7 +317,7 @@ class _TestProducer(_TestStreamProcessor):
     def test_typeOutIsNotVariable(self, producer):
         assert not producer.type_out().is_variable()
 
-    def test_typeOfProducedValues(self, producer, env_params, max_amount):
+    def test_typeOfProducedValues(self, producer, env_params, max_amount, result):
         env = producer.get_initial_env(*env_params)
         t = producer.type_out()
         count = 0
@@ -401,19 +396,21 @@ class _TestPipe(_TestStreamProcessor):
             assert tin.contains(v)
             return v
 
-        def downstream(val):
-            assert tout.contains(val)
+        def downstream(v):
+            if result != self._NoValue:
+                assert result.pop(0) == v
+            assert tout.contains(v)
 
         try:
             for i in range(0, min(max_amount, len(test_values))):
                 res = pipe.step(env, upstream, downstream)
                 if isinstance(res, Stop):
-                    return
-        except StopIteration:
+                    break 
+        except Exhausted:
             assert isinstance(res, MayResume)
-            return
         finally:
             pipe.shutdown_env(env)
+
 
 ###############################################################################
 #
