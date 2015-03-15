@@ -84,6 +84,12 @@ class TestPyTypes(object):
     def test_containsIn(self):
         t1 = Type.get(int)
         assert t1.contains(10)
+        assert not t1.contains("foo")
+
+    def test_cached(self):
+        t1 = Type.get(int)
+        t2 = Type.get(int)
+        assert t1 == t2
 
 
 class TestProductTypes(object):
@@ -292,14 +298,14 @@ class TestArrowType(object):
         t2 = ArrowType.get(sub, base)
         t3 = ArrowType.get(other, base)
 
-        assert t1.compose_with(t2) == t3
+        assert t1 % t2 == t3
 
     def test_composition2(self, base):
         t1 = Type.get()
         t2 = ArrowType.get(t1, t1)
         t3 = ArrowType.get(base, base)
 
-        t4 = t2.compose_with(t3)
+        t4 = t2 % t3
         assert t4 == t3
 
     def test_composition3(self, base, other):
@@ -307,7 +313,7 @@ class TestArrowType(object):
         t2 = ArrowType.get(other, other)
         
         with pytest.raises(TypeError) as excinfo:
-            t1.compose_with(t2)
+            t1 % t2
         assert "compose" in str(excinfo.value)
 
     def test_composition4(self, base, other):
@@ -316,17 +322,17 @@ class TestArrowType(object):
         t1 = ArrowType.get(v1, (v1, base))
         t2 = ArrowType.get((other, v2), v2)
 
-        t3 = t1.compose_with(t2)
+        t3 = t1 % t2
         assert t3 == ArrowType(other, base)
 
-    def test_composition_replacements(self, base):
-        t1 = Type.get()
-        t2 = ArrowType.get(t1, t1)
-        t3 = ArrowType.get(base, base)
-
-        repl = {}
-        t4 = t2.compose_with(t3, repl)
-        assert repl == { t1 : base }
+#    def test_composition_replacements(self, base):
+#        t1 = Type.get()
+#        t2 = ArrowType.get(t1, t1)
+#        t3 = ArrowType.get(base, base)
+#
+#        repl = {}
+#        t4 = t2.compose(t3, repl)
+#        assert repl == { t1 : base }
 
 
 class TestTypeVar(object):
@@ -361,29 +367,29 @@ class TestTypeVar(object):
         assert not p2.is_variable()
         assert p3.is_variable()
         assert p4.is_variable()
-
-    def test_isSatisfiedBy(self, base, other):
-        v1 = Type.get()
-        v2 = Type.get()
-        bl = Type.get([base])
-        vl = Type.get([v1])
-        bp = Type.get(base, base)
-        vp = Type.get(v1, v1)
-        vp2 = Type.get(v1, v2)
-        
-        
-        assert v1.is_satisfied_by(base)
-        assert v1.is_satisfied_by(v2)
-        assert v1.is_satisfied_by(bl)
-        assert v1.is_satisfied_by(vl)
-        assert v1.is_satisfied_by(bp)
-        assert v1.is_satisfied_by(vp)
-        assert v1.is_satisfied_by(vp2)
-        assert vp.is_satisfied_by(bp)
-        assert vp2.is_satisfied_by(bp)
-        assert vl.is_satisfied_by(bl)
-        assert not vl.is_satisfied_by(bp)
-        assert not vp.is_satisfied_by(bl)
+#
+#    def test_isSatisfiedBy(self, base, other):
+#        v1 = Type.get()
+#        v2 = Type.get()
+#        bl = Type.get([base])
+#        vl = Type.get([v1])
+#        bp = Type.get(base, base)
+#        vp = Type.get(v1, v1)
+#        vp2 = Type.get(v1, v2)
+#        
+#        
+#        assert v1.is_satisfied_by(base)
+#        assert v1.is_satisfied_by(v2)
+#        assert v1.is_satisfied_by(bl)
+#        assert v1.is_satisfied_by(vl)
+#        assert v1.is_satisfied_by(bp)
+#        assert v1.is_satisfied_by(vp)
+#        assert v1.is_satisfied_by(vp2)
+#        assert vp.is_satisfied_by(bp)
+#        assert vp2.is_satisfied_by(bp)
+#        assert vl.is_satisfied_by(bl)
+#        assert not vl.is_satisfied_by(bp)
+#        assert not vp.is_satisfied_by(bl)
 
 
 class TestApplicationType(object):
@@ -423,3 +429,39 @@ class TestUnitType(object):
         assert t1 == base
         assert t2 == unit 
     
+class TestUnify(object):
+    def test_unifyWithSame(self, unit, base):
+        assert unit.unify(unit) == unit
+        assert base.unify(base) == base 
+    def test_noUnifyWithDifferent(self, unit, base):
+        assert unit.unify(base) is None 
+        assert base.unify(unit) is None 
+    def test_unifyWithSubclass(self, base, sub):
+        assert base.unify(sub) is sub
+        assert sub.unify(base) is sub
+    def test_unifyWithTypeVar(self, base):
+        v = Type.get()
+        assert base.unify(v) == base
+        assert v.unify(base) == base
+    def test_unifyProductTypes(self, base):
+        v1 = Type.get()
+        v2 = Type.get()
+        assert Type.get(base, base).unify((v1, v2)) == (base, base)
+    def test_unifyListType(self, base):
+        v1 = Type.get()
+        l1 = Type.get([base])
+        l2 = Type.get([v1])
+        assert l1.unify(l2) == [base]
+        assert l2.unify(l1) == [base]
+    def test_noUnifyIncompatibleProductTypes(self, base, other):
+        v1 = Type.get()
+        p1 = Type.get(v1,base)
+        p2 = Type.get(other,v1)
+        assert p1.unify(p2) is None
+        assert p2.unify(p1) is None
+    def test_unifyProductTypes2(self, base, sub):
+        v1 = Type.get()
+        p1 = Type.get(v1, base)
+        p2 = Type.get(sub, v1)
+        assert p1.unify(p2) == (sub, sub)
+        assert p2.unify(p1) == (sub, sub)
