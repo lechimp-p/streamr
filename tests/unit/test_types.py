@@ -314,7 +314,7 @@ class TestArrowType(object):
         
         with pytest.raises(TypeError) as excinfo:
             t1 % t2
-        assert "compose" in str(excinfo.value)
+        assert "unify" in str(excinfo.value)
 
     def test_composition4(self, base, other):
         v1 = Type.get()
@@ -323,7 +323,7 @@ class TestArrowType(object):
         t2 = ArrowType.get((other, v2), v2)
 
         t3 = t1 % t2
-        assert t3 == ArrowType(other, base)
+        assert t3 == ArrowType.get(other, base)
 
 #    def test_composition_replacements(self, base):
 #        t1 = Type.get()

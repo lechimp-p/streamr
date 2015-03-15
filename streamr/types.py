@@ -443,10 +443,31 @@ class TypeEngine(object):
                 return self.applied_type_cache[(l,r)]
             return self.applied_type_cache[(l,r)][0]
 
-        l_t, substitutions = self.unify(l.l_type, r, True) 
+        _, substitutions = self.unify(l.l_type, r, True) 
         r_t = self._do_substitutions(substitutions, l.r_type) 
         self.applied_type_cache[(l,r)] = (r_t, substitutions)
         return self.apply(l, r, with_substitutions)
+
+    composed_type_cache = {}
+    
+    def compose(self, l, r, with_substitutions = False):
+        l, r = self._toType(l,r)
+
+        if not isinstance(l, ArrowType) or not isinstance(r, ArrowType):
+            raise TypeError("Can't compose none arrow types.")
+
+        if (l, r) in self.composed_type_cache:
+            if with_substitutions:
+                return self.composed_type_cache[(l,r)]
+            return self.composed_type_cache[(l,r)][0]
+
+        _, substitutions = self.unify(l.r_type, r.l_type, True)
+        l_t = self._do_substitutions(substitutions, l.l_type)
+        r_t = self._do_substitutions(substitutions, r.r_type)
+        arr = ArrowType.get(l_t, r_t)
+
+        self.composed_type_cache[(l,r)] = (arr, substitutions)
+        return self.compose(l, r, with_substitutions)
 
     @staticmethod
     def _cant_unify(l,r):
@@ -521,12 +542,6 @@ class TypeEngine(object):
 #            raise TypeError("Can't apply '%s' to '%s'" % (l,r))
 #
 #        return self.replaceMany(l.r_type, replacements)
-    
-    def compose(self, l, r, replacements = None):
-        if not isinstance(l, ArrowType) or not isinstance(r, ArrowType):
-            raise TypeError("Can't compose none arrow types.")
-
-        return None
 #
 #        if replacements is None:
 #            replacements = {}
