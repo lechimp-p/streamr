@@ -116,6 +116,9 @@ class Type(object):
 
         return ProductType.get(*py_types)
 
+    def is_variable(self):
+        return NotImplementedError()
+
 class UnitType(Type):
     """
     Represents the unit type, that is the type that contains a single value.
@@ -137,6 +140,9 @@ class UnitType(Type):
 
     def __str__(self):
         return "()"
+
+    def is_variable(self):
+        return False
 
 unit = UnitType.get()
 
@@ -175,6 +181,9 @@ class ArrowType(Type):
     def __str__(self):
         return "(%s -> %s)" % (self.l_type, self.r_type)
 
+    def is_variable(self):
+        return self.l_type.is_variable() or self.r_type.is_variable() 
+
 class TypeVar(Type):
     """
     Represents a type that has yet to be inferred.
@@ -185,6 +194,9 @@ class TypeVar(Type):
 
     def __str__(self):
         return "#%s" % (str(id(self))[-3:-1])
+
+    def is_variable(self):
+        return True 
 
 class ProductType(Type):
     """
@@ -218,6 +230,9 @@ class ProductType(Type):
 
     def __str__(self):
         return "(%s)" % reduce(lambda a,b : "%s, %s" % (a,b), self.types)
+
+    def is_variable(self):
+        return ANY(map(lambda x: x.is_variable(), self.types))
 
     def construct(self, l):
         """
@@ -274,6 +289,9 @@ class ListType(Type):
     def __str__(self):
         return "[%s]" % self.item_type
 
+    def is_variable(self):
+        return self.item_type.is_variable()
+
 class PyType(Type):
     """
     Represents a python class.
@@ -297,6 +315,9 @@ class PyType(Type):
     def __str__(self):
         s = str(self.py_type)
         return re.match(".*[']([^']+)[']", s).group(1)
+
+    def is_variable(self):
+        return False
 
 def sequence(arrows):
     cur = arrows[0] 

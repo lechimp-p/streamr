@@ -14,7 +14,7 @@ class SimpleCompositionEngine(object):
                          or right.is_producer()
                          or left.is_runnable()
                          or right.is_runnable()
-                         or not right.type_in().is_satisfied_by(left.type_out()))
+                         or not self._composable(left, right))
 
         if not_composable:
             raise TypeError("Can't compose %s and %s." % (left, right))
@@ -23,6 +23,15 @@ class SimpleCompositionEngine(object):
 
     def compose_parallel(self, top, bottom):
         return ParallelStreamProcessor([top, bottom])
+
+    @staticmethod
+    def _composable(l, r):
+        try:
+            l.type_arrow() % r.type_arrow()
+            return True
+        except TypeError:
+            return False
+     
 
 StreamProcessor.composition_engine = SimpleCompositionEngine()
 
