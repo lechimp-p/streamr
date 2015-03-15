@@ -428,7 +428,25 @@ class TypeEngine(object):
         unified = self._unifies(substitutions, l, r)
         substituted = self._do_substitutions(substitutions, unified)
         self.unified_type_cache[(l,r)] = (substituted, substitutions)
-        return self.unify(l, r)
+        return self.unify(l, r, with_substitutions)
+
+    applied_type_cache = {}
+
+    def apply(self, l, r, with_substitutions = False):
+        l,r = self._toType(l,r)
+
+        if not isinstance(l, ArrowType):
+            raise TypeError("Can't apply a none arrow type.")
+
+        if (l, r) in self.applied_type_cache:
+            if with_substitutions:
+                return self.applied_type_cache[(l,r)]
+            return self.applied_type_cache[(l,r)][0]
+
+        l_t, substitutions = self.unify(l.l_type, r, True) 
+        r_t = self._do_substitutions(substitutions, l.r_type) 
+        self.applied_type_cache[(l,r)] = (r_t, substitutions)
+        return self.apply(l, r, with_substitutions)
 
     @staticmethod
     def _cant_unify(l,r):
@@ -493,12 +511,6 @@ class TypeEngine(object):
             return ProductType.get(*list(map(m, t.types)))
         
         return t
-
-    def apply(self, l, r, replacements = None):
-        if not isinstance(l, ArrowType):
-            raise TypeError("Can't apply a none arrow type.")
-
-        return None
 
 
 #        l,r = self._toType(l,r)
