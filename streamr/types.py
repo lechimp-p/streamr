@@ -425,65 +425,77 @@ class TypeEngine(object):
 
         substitutions = {}
 
-        def cant_unify(l,r):
-            raise TypeError("Can't unify '%s' and '%s'" % (l,r))
+        self.unified_type_cache[(l,r)] = ( self._do_substitutions( 
+                                                      substitutions
+                                                    , self._unifies(
+                                                          substitutions
+                                                        , l
+                                                        , r))
+                                         , substitutions)
+        return self.unify(l, r)
 
-        def substitute(v, t):
-            if v in substitutions:
-                o = substitutions[v]
-                if o == t:
-                    return v
-                if t >= o:
-                    substitutions[v] = t
-                elif not o >= t:
-                    cant_unify(o,t) 
+    @staticmethod
+    def _cant_unify(l,r):
+        raise TypeError("Can't unify '%s' and '%s'" % (l,r))
+
+    @staticmethod
+    def _substitute(subs, v, t):
+        if v in subs:
+            o = subs[v]
+            if o == t:
                 return v
-
-            substitutions[v] = t
+            if t >= o:
+                subs[v] = t
+            elif not o >= t:
+                TypeEngine._cant_unify(o,t) 
             return v
 
-        def unifies(l,r):
-            if l == r:
-                return l
+        subs[v] = t
+        return v
 
-            if l >= r:
-                return l
-            if r >= l:
-                return r
+    @staticmethod
+    def _unifies(subs, l,r):
+        if l == r:
+            return l
 
-            if isinstance(l, TypeVar):
-                return substitute(l, r)
-            if isinstance(r, TypeVar):
-                return substitute(r, l)
+        if l >= r:
+            return l
+        if r >= l:
+            return r
 
-            if type(l) != type(r):
-                cant_unify(l,r)
+        if isinstance(l, TypeVar):
+            return TypeEngine._substitute(subs, l, r)
+        if isinstance(r, TypeVar):
+            return TypeEngine._substitute(subs, r, l)
 
-            if type(l) == ListType:
-                t = unifies(l.item_type, r.item_type)
-                return ListType.get(t)
+        if type(l) != type(r):
+            TypeEngine._cant_unify(l,r)
 
-            if type(l) == ProductType:
-                if len(l.types) != len(r.types):
-                    cant_unify(l,r)
-                return ProductType.get(*list(map(lambda x: unifies(*x), zip(l.types, r.types))))
+        if type(l) == ListType:
+            t = TypeEngine._unifies(subs, l.item_type, r.item_type)
+            return ListType.get(t)
 
-            cant_unify(l,r)
+        if type(l) == ProductType:
+            if len(l.types) != len(r.types):
+                TypeEngine._cant_unify(l,r)
+            return ProductType.get(*list(map( lambda x: TypeEngine._unifies(subs, *x)
+                                            , zip(l.types, r.types))))
 
-        def do_substitutions(t):
-            if t in substitutions:
-                return do_substitutions(substitutions[t])
+        TypeEngine._cant_unify(l,r)
 
-            if type(t) == ListType:
-                return ListType.get(do_substitutions(t.item_type))
+    @staticmethod
+    def _do_substitutions(subs, t):
+        if t in subs:
+            return TypeEngine._do_substitutions(subs, subs[t])
 
-            if type(t) == ProductType:
-                return ProductType.get(*map(do_substitutions, t.types))
-            
-            return t
+        if type(t) == ListType:
+            return ListType.get(TypeEngine._do_substitutions(subs, t.item_type))
 
-        self.unified_type_cache[(l,r)] = (do_substitutions(unifies(l,r)), substitutions)
-        return self.unify(l, r)
+        if type(t) == ProductType:
+            return ProductType.get(*list(map(lambda x: TypeEngine._do_substitutions(subs, x)
+                                            , t.types)))
+        
+        return t
 
     def apply(self, l, r, replacements = None):
         if not isinstance(l, ArrowType):
