@@ -441,8 +441,8 @@ class TestUnify(object):
             base.unify(unit)
         assert "unify" in str(excinfo.value)
     def test_unifyWithSubclass(self, base, sub):
-        assert base.unify(sub) == sub
-        assert sub.unify(base) == sub
+        base.unify(sub) == sub
+        sub.unify(base) == sub
     def test_unifyWithTypeVar(self, base):
         v = Type.get()
         assert base.unify(v) == base

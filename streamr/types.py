@@ -373,22 +373,6 @@ class TypeEngine(object):
 
         return False
 
-    def _lt_on_type_var(self, l, r):
-        for c in l.constraints:
-            # For every constraint in l there needs to be a sufficient
-            # constraint in r that guarantees, that the desired class
-            # is a superclass of the class required by l.
-            has_super = False
-            for cr in r.constraints:
-                if issubclass(cr, c) and not issubclass(c,cr):
-                    has_super = True
-                    break
-            
-            if not has_super:
-                return False
-
-        return True
-          
     def contains(self, _type, value):
         t = type(_type)
         
@@ -431,43 +415,46 @@ class TypeEngine(object):
 
     unified_type_cache = {}
 
-    def unify(self, l, r):
-        if (l,r) in self.unified_type_cache:
-            return self.unified_type_cache[(l,t)]
+    def unify(self, l, r, with_substitutions = False):
+        l,r = self._toType(l,r)
 
-        constraints = {} 
+        if (l,r) in self.unified_type_cache:
+            if with_substitutions:
+                return self.unified_type_cache[(l,r)]
+            return self.unified_type_cache[(l,r)][0]
+
         substitutions = {}
 
         def cant_unify(l,r):
             raise TypeError("Can't unify '%s' and '%s'" % (l,r))
 
         def substitute(v, t):
+            if v in substitutions:
+                o = substitutions[v]
+                if o == t:
+                    return v
+                if t >= o:
+                    substitutions[v] = t
+                elif not o >= t:
+                    cant_unify(o,t) 
+                return v
+
             substitutions[v] = t
-            return v
-
-        def constraint(v,r):
-            v = Type.get()
-            for c in l.constraints + r.constraints:
-                v = v.constrain(c)
-
-
-            constraints.append(v)
             return v
 
         def unifies(l,r):
             if l == r:
                 return l
 
+            if l >= r:
+                return l
+            if r >= l:
+                return r
+
             if isinstance(l, TypeVar):
-                if isinstance(r, TypeVar):
-                    return constraint(l,r)
-                if len(l.constraints) == 0:
-                    return substitute(l, r)
-                cant_unify(l,r)
+                return substitute(l, r)
             if isinstance(r, TypeVar):
-                if len(r.constraints) == 0:
-                    return substitute(r, l)
-                cant_unify(l,r)
+                return substitute(r, l)
 
             if type(l) != type(r):
                 cant_unify(l,r)
@@ -485,7 +472,7 @@ class TypeEngine(object):
 
         def do_substitutions(t):
             if t in substitutions:
-                return substitutions[t]
+                return do_substitutions(substitutions[t])
 
             if type(t) == ListType:
                 return ListType.get(do_substitutions(t.item_type))
@@ -495,8 +482,8 @@ class TypeEngine(object):
             
             return t
 
-        self.unified_type_cache[(l,r)] = do_substitutions(unifies(l,r))
-        return self.unified_type_cache[(l,r)]
+        self.unified_type_cache[(l,r)] = (do_substitutions(unifies(l,r)), substitutions)
+        return self.unify(l, r)
 
     def apply(self, l, r, replacements = None):
         if not isinstance(l, ArrowType):
