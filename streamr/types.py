@@ -319,13 +319,8 @@ class PyType(Type):
     def is_variable(self):
         return False
 
-def sequence(arrows):
-    cur = arrows[0] 
-    
-    for arr in arrows[1:]:
-        cur = cur % arr
-
-    return cur
+def sequence(arrows, with_substitutions = False):
+    return Type.engine.sequence(arrows, with_substitutions)
 
 class TypeEngine(object):
     """
@@ -432,27 +427,36 @@ class TypeEngine(object):
         r_t = self._do_substitutions(substitutions, l.r_type) 
         self.applied_type_cache[(l,r)] = (r_t, substitutions)
         return self.apply(l, r, with_substitutions)
-
-    composed_type_cache = {}
     
     def compose(self, l, r, with_substitutions = False):
-        l, r = self._toType(l,r)
+        return self.sequence([l,r], with_substitutions)
 
-        if not isinstance(l, ArrowType) or not isinstance(r, ArrowType):
-            raise TypeError("Can't compose none arrow types.")
+    composed_type_cache = {}
 
-        if (l, r) in self.composed_type_cache:
+    def sequence(self, arrows, with_substitutions = False):
+        arrows = list(arrows)
+        for i in range(0, len(arrows)):
+            arrows[i] = Type.get(arrows[i])
+            if not isinstance(arrows[i], ArrowType):
+                raise TypeError("Can't compose none arrow types.")
+
+        if tuple(arrows) in self.composed_type_cache:
             if with_substitutions:
-                return self.composed_type_cache[(l,r)]
-            return self.composed_type_cache[(l,r)][0]
+                return self.composed_type_cache[tuple(arrows)]
+            return self.composed_type_cache[tuple(arrows)][0]
 
-        _, substitutions = self.unify(l.r_type, r.l_type, True)
-        l_t = self._do_substitutions(substitutions, l.l_type)
-        r_t = self._do_substitutions(substitutions, r.r_type)
+        substitutions = {}
+        r_type = arrows[0].r_type
+        for a in arrows[1:]:
+            _ = self._unifies(substitutions, r_type, a.l_type)
+            r_type = a.r_type
+
+        l_t = self._do_substitutions(substitutions, arrows[0].l_type)
+        r_t = self._do_substitutions(substitutions, arrows[-1].r_type)
         arr = ArrowType.get(l_t, r_t)
 
-        self.composed_type_cache[(l,r)] = (arr, substitutions)
-        return self.compose(l, r, with_substitutions)
+        self.composed_type_cache[tuple(arrows)] = (arr, substitutions)
+        return self.sequence(arrows, with_substitutions)
 
     @staticmethod
     def _cant_unify(l,r):
