@@ -325,16 +325,6 @@ class TestArrowType(object):
         t3 = t1 % t2
         assert t3 == ArrowType.get(other, base)
 
-#    def test_composition_replacements(self, base):
-#        t1 = Type.get()
-#        t2 = ArrowType.get(t1, t1)
-#        t3 = ArrowType.get(base, base)
-#
-#        repl = {}
-#        t4 = t2.compose(t3, repl)
-#        assert repl == { t1 : base }
-
-
 class TestTypeVar(object):
     def test_uniqueness(self, base):
         t1 = Type.get()
@@ -344,53 +334,6 @@ class TestTypeVar(object):
         assert t1 != t2
         assert t2 == t2
         assert t2 != t1
-
-#    def test_isVariable(self, base):
-#        t1 = Type.get()
-#        t2 = Type.get(base)
-#        l1 = Type.get([t1])
-#        l2 = Type.get([t2])
-#        p1 = Type.get((t1,))
-#        p2 = Type.get((t2,))
-#        p3 = Type.get((t1,t2))
-#        p4 = Type.get((t2,t1))
-#        a1 = ArrowType.get(t1,t1)
-#        a2 = ArrowType.get(t2,t2)
-#        a3 = ArrowType.get(t1,t2)
-#        a4 = ArrowType.get(t2,t1)
-#
-#        assert t1.is_variable()
-#        assert not t2.is_variable()
-#        assert l1.is_variable()
-#        assert not l2.is_variable()
-#        assert p1.is_variable()
-#        assert not p2.is_variable()
-#        assert p3.is_variable()
-#        assert p4.is_variable()
-#
-#    def test_isSatisfiedBy(self, base, other):
-#        v1 = Type.get()
-#        v2 = Type.get()
-#        bl = Type.get([base])
-#        vl = Type.get([v1])
-#        bp = Type.get(base, base)
-#        vp = Type.get(v1, v1)
-#        vp2 = Type.get(v1, v2)
-#        
-#        
-#        assert v1.is_satisfied_by(base)
-#        assert v1.is_satisfied_by(v2)
-#        assert v1.is_satisfied_by(bl)
-#        assert v1.is_satisfied_by(vl)
-#        assert v1.is_satisfied_by(bp)
-#        assert v1.is_satisfied_by(vp)
-#        assert v1.is_satisfied_by(vp2)
-#        assert vp.is_satisfied_by(bp)
-#        assert vp2.is_satisfied_by(bp)
-#        assert vl.is_satisfied_by(bl)
-#        assert not vl.is_satisfied_by(bp)
-#        assert not vp.is_satisfied_by(bl)
-
 
 class TestApplicationType(object):
     def test_application1(self, base):
