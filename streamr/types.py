@@ -193,44 +193,12 @@ class TypeVar(Type):
     """
     Represents a type that has yet to be inferred.
     """
-    def __init__(self, *py_types):
-        self.constraints = list(py_types) 
-
-    def constrain(self, py_type):
-        """
-        Constrain this type variable to have a certain python class.
-        """
-        if not isinstance(py_type, type):
-            raise ValueError("Expected an instance of pythons type class, "
-                             "instead got %s." % type(py_type))
-
-        for c in self.constraints:
-            if issubclass(c,py_type):
-                return self
-
-        constraints = ( list(filter( lambda x: not issubclass(py_type, x)
-                            , self.constraints))
-                      + [py_type])
-
-        return TypeVar(*constraints)
-
     @staticmethod
     def get():
         return TypeVar()
 
     def __str__(self):
-        if len(self.constraints) == 0:
-            return "#%s" % (str(id(self))[-3:-1])
-
-        def to_str(pt):
-            s = str(pt)
-            return re.match(".*[']([^']+)[']", s).group(1)
-
-        return "(%s)" % reduce("%s & %s", map(to_str, self.constraints))
-
-    def free(self):
-        return true
-        
+        return "#%s" % (str(id(self))[-3:-1])
 
 class ProductType(Type):
     """
@@ -325,8 +293,7 @@ class PyType(Type):
     Represents a python class.
     """
     def __init__(self, py_type):
-        raise RuntimeError("Don't instantiate me, i'm a placeholder for a variable"
-                           " with a constraint.")
+        self.py_type = py_type
 
     cache = {}
 
@@ -337,7 +304,7 @@ class PyType(Type):
                              "instead got %s." % type(py_type))
 
         if py_type not in PyType.cache:
-            PyType.cache[py_type] = TypeVar().constrain(py_type)
+            PyType.cache[py_type] = PyType(py_type)
 
         return PyType.cache[py_type]
 
@@ -360,7 +327,8 @@ class TypeEngine(object):
     def lt(self, l, r):
         l,r = self._toType(l,r)
         return self._withComparisons(l, r, {
-              TypeVar : self._lt_on_type_var
+              PyType :      lambda l, r:
+                l.py_type != r.py_type and issubclass(r.py_type, l.py_type)
             , ProductType : lambda l, r: 
                 len(l.types) == len(r.types) 
                 and ALL((v[0] < v[1] for v in zip(l.types, r.types)))
@@ -426,11 +394,8 @@ class TypeEngine(object):
         
         if t == UnitType:
             return value == () 
-        if t == TypeVar:
-            for c in _type.constraints:
-                if not isinstance(value, c):
-                    return False
-            return True
+        if t == PyType:
+            return isinstance(value, _type.py_type)
         if t == ProductType:
             if type(value) != tuple:
                 return False
@@ -597,28 +562,28 @@ class TypeEngine(object):
 #        return where
 #
 #
-    is_variable_cache = {}
-
-    def is_variable(self, _type):
-        t = type(_type)
-
-        if _type not in TypeEngine.is_variable_cache:
-            if t == TypeVar:
-                is_variable = True
-            elif t == ListType:
-                is_variable = self.is_variable(_type.item_type)
-            elif t == ProductType:
-                is_variable = ANY(self.is_variable(i) for i in _type.types)
-            elif t == ArrowType:
-                is_variable = ( self.is_variable(t.l_type) 
-                                or self.is_variable(t.r_type) )
-            else:
-                is_variable = False 
-
-            TypeEngine.is_variable_cache[_type] = is_variable
-
-        return TypeEngine.is_variable_cache[_type]
-
+#    is_variable_cache = {}
+#
+#    def is_variable(self, _type):
+#        t = type(_type)
+#
+#        if _type not in TypeEngine.is_variable_cache:
+#            if t == TypeVar:
+#                is_variable = True
+#            elif t == ListType:
+#                is_variable = self.is_variable(_type.item_type)
+#            elif t == ProductType:
+#                is_variable = ANY(self.is_variable(i) for i in _type.types)
+#            elif t == ArrowType:
+#                is_variable = ( self.is_variable(t.l_type) 
+#                                or self.is_variable(t.r_type) )
+#            else:
+#                is_variable = False 
+#
+#            TypeEngine.is_variable_cache[_type] = is_variable
+#
+#        return TypeEngine.is_variable_cache[_type]
+#
 #    def get_variables(self, _type, vlist = None):
 #        if vlist is None:
 #            vlist = []
