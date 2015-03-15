@@ -215,11 +215,13 @@ class ComposedStreamProcessor(StreamProcessor):
 
     Handles initialisation and shutdown of the sub processors.
     """
-    def __init__(self, type_in, type_out, processors):
+    def __init__(self, type_in, type_out, processors, substitutions = {}):
         assert ALL(isinstance(p, StreamProcessor) for p in processors)
 
-        tinit = Type.get(*[p.type_init() for p in processors])
-        tresult = Type.get(*[p.type_result() for p in processors])
+        tinit = (Type.get(*[p.type_init() for p in processors])
+                     .substitute_vars(substitutions))
+        tresult = (Type.get(*[p.type_result() for p in processors])
+                       .substitute_vars(substitutions))
 
         super(ComposedStreamProcessor, self).__init__(tinit, tresult, type_in, type_out)
 
@@ -250,11 +252,12 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
     output of a previous processor to the input of the next processor.
     """
     def __init__(self, processors):
-        tarr = sequence([p.type_arrow() for p in processors]) 
+        tarr, substitutions = sequence([p.type_arrow() for p in processors], True) 
 
         super(SequentialStreamProcessor, self).__init__( tarr.type_in()
                                                        , tarr.type_out()
-                                                       , processors)
+                                                       , processors
+                                                       , substitutions)
 
     def get_initial_env(self, *params):
         env = super(SequentialStreamProcessor, self).get_initial_env(*params)

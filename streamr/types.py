@@ -83,6 +83,11 @@ class Type(object):
         Returns unified type, raises TypeError when unification can't be achieved.
         """
         return Type.engine.unify(self, other)
+    def substitute_vars(self, substitutions):
+        """
+        Replace type variables given in substitutions in this type.
+        """
+        return Type.engine.substitute_in(self, substitutions)
 
     @staticmethod
     def get(*py_types):
@@ -457,6 +462,9 @@ class TypeEngine(object):
 
         self.composed_type_cache[tuple(arrows)] = (arr, substitutions)
         return self.sequence(arrows, with_substitutions)
+
+    def substitute_in(self, _type, substitutions):
+        return self._do_substitutions(substitutions, _type)
 
     @staticmethod
     def _cant_unify(l,r):
