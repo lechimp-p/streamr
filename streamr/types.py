@@ -120,7 +120,6 @@ class Type(object):
 
         return ProductType.get(*py_types)
 
-
     def is_variable(self):
         """
         Check whether type contains any variable part.
@@ -141,30 +140,94 @@ class Type(object):
 #        """
 #        return Type.engine.is_satisfied_by(self, other)
 
-class PyType(Type):
+class UnitType(Type):
     """
-    Represents a python class.
+    Represents the unit type, that is the type that contains a single value.
+
+    The value is identified with the empty tuple (), which makes it easy to use
+    the unit type with a *style parameter list.
     """
-    def __init__(self, py_type):
-        raise RuntimeError("Don't instantiate me, i'm a placeholder for a variable"
-                           " with a constraint.")
+    def __init__(self):
+        pass
+
+    instance = None
+
+    @staticmethod
+    def get():
+        if UnitType.instance is None:
+            UnitType.instance = UnitType()
+
+        return UnitType.instance
+
+    def __str__(self):
+        return "()"
+
+unit = UnitType.get()
+
+class ArrowType(Type):
+    """
+    Represents the type of a transformation from one type to another.
+    """
+    def __init__(self, l_type, r_type):
+        if not isinstance(l_type, Type) or not isinstance(r_type, Type):
+            raise ValueError("Expected instances of Type as arguments.")
+
+        # TODO: Something should forbid impossible functions like a -> b.
+        # One can't produce an arbitrary b for an arbitrary a
+        # Maybe the correct location is in replace...
+
+        self.l_type = l_type
+        self.r_type = r_type
 
     cache = {}
 
     @staticmethod
-    def get(py_type):
+    def get(l_type, r_type):
+        l_type = Type.get(l_type)
+        r_type = Type.get(r_type)
+
+        if (l_type, r_type) not in ArrowType.cache:
+            ArrowType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
+
+        return ArrowType.cache[(l_type, r_type)]
+
+    def type_in(self):
+        return self.l_type
+    def type_out(self):
+        return self.r_type
+
+    def __str__(self):
+        return "(%s -> %s)" % (self.l_type, self.r_type)
+
+class TypeVar(Type):
+    """
+    Represents a type that has yet to be inferred.
+    """
+    def __init__(self):
+        self.constraints = []
+
+    def constrain(self, py_type):
+        """
+        Constrain this type variable to have a certain python class.
+        """
         if not isinstance(py_type, type):
             raise ValueError("Expected an instance of pythons type class, "
                              "instead got %s." % type(py_type))
 
-        if py_type not in PyType.cache:
-            PyType.cache[py_type] = TypeVar().constrain(py_type)
+        for c in self.constraints:
+            if issubclass(c,py_type):
+                return self
 
-        return PyType.cache[py_type]
+        t = TypeVar()
+        t.constraints = self.constraints + [py_type]
+        return t
+
+    @staticmethod
+    def get():
+        return TypeVar()
 
     def __str__(self):
-        s = str(self.py_type)
-        return re.match(".*[']([^']+)[']", s).group(1)
+        return "#%s" % (str(id(self))[-3:-1])
 
 class ProductType(Type):
     """
@@ -230,7 +293,6 @@ class ProductType(Type):
             ret += self.deconstruct(e)
         return ret
             
-
 class ListType(Type):
     """
     Represents a list type with items of one fixed other type.
@@ -255,40 +317,30 @@ class ListType(Type):
     def __str__(self):
         return "[%s]" % self.item_type
 
-class ArrowType(Type):
+class PyType(Type):
     """
-    Represents the type of a transformation from one type to another.
+    Represents a python class.
     """
-    def __init__(self, l_type, r_type):
-        if not isinstance(l_type, Type) or not isinstance(r_type, Type):
-            raise ValueError("Expected instances of Type as arguments.")
-
-        # TODO: Something should forbid impossible functions like a -> b.
-        # One can't produce an arbitrary b for an arbitrary a
-        # Maybe the correct location is in replace...
-
-        self.l_type = l_type
-        self.r_type = r_type
+    def __init__(self, py_type):
+        raise RuntimeError("Don't instantiate me, i'm a placeholder for a variable"
+                           " with a constraint.")
 
     cache = {}
 
     @staticmethod
-    def get(l_type, r_type):
-        l_type = Type.get(l_type)
-        r_type = Type.get(r_type)
+    def get(py_type):
+        if not isinstance(py_type, type):
+            raise ValueError("Expected an instance of pythons type class, "
+                             "instead got %s." % type(py_type))
 
-        if (l_type, r_type) not in ArrowType.cache:
-            ArrowType.cache[(l_type, r_type)] = ArrowType(l_type, r_type)
+        if py_type not in PyType.cache:
+            PyType.cache[py_type] = TypeVar().constrain(py_type)
 
-        return ArrowType.cache[(l_type, r_type)]
-
-    def type_in(self):
-        return self.l_type
-    def type_out(self):
-        return self.r_type
+        return PyType.cache[py_type]
 
     def __str__(self):
-        return "(%s -> %s)" % (self.l_type, self.r_type)
+        s = str(self.py_type)
+        return re.match(".*[']([^']+)[']", s).group(1)
 
 def sequence(arrows):
     cur = arrows[0] 
@@ -298,56 +350,6 @@ def sequence(arrows):
 
     return cur
 
-class TypeVar(Type):
-    """
-    Represents a type that has yet to be inferred.
-    """
-    def __init__(self):
-        self.constraints = []
-
-    def constrain(self, py_type):
-        """
-        Constrain this type variable to have a certain python class.
-        """
-        if not isinstance(py_type, type):
-            raise ValueError("Expected an instance of pythons type class, "
-                             "instead got %s." % type(py_type))
-
-        t = TypeVar()
-        t.constraints = self.constraints + [py_type]
-        return t
-
-    @staticmethod
-    def get():
-        return TypeVar()
-
-    def __str__(self):
-        return "#%s" % (str(id(self))[-3:-1])
-
-class UnitType(Type):
-    """
-    Represents the unit type, that is the type that contains a single value.
-
-    The value is identified with the empty tuple (), which makes it easy to use
-    the unit type with a *style parameter list.
-    """
-    def __init__(self):
-        pass
-
-    instance = None
-
-    @staticmethod
-    def get():
-        if UnitType.instance is None:
-            UnitType.instance = UnitType()
-
-        return UnitType.instance
-
-    def __str__(self):
-        return "()"
-
-unit = UnitType.get()
-
 class TypeEngine(object):
     """
     Engine that does type checking.
@@ -355,8 +357,7 @@ class TypeEngine(object):
     def lt(self, l, r):
         l,r = self._toType(l,r)
         return self._withComparisons(l, r, {
-              PyType :      lambda l, r: 
-                l.py_type != r.py_type and issubclass(r.py_type, l.py_type)
+              TypeVar : self._lt_on_type_var
             , ProductType : lambda l, r: 
                 len(l.types) == len(r.types) 
                 and ALL((v[0] < v[1] for v in zip(l.types, r.types)))
@@ -401,6 +402,22 @@ class TypeEngine(object):
 
         return False
 
+    def _lt_on_type_var(self, l, r):
+        for c in l.constraints:
+            # For every constraint in l there needs to be a sufficient
+            # constraint in r that guarantees, that the desired class
+            # is a superclass of the class required by l.
+            has_super = False
+            for cr in r.constraints:
+                if issubclass(cr, c) and not issubclass(c,cr):
+                    has_super = True
+                    break
+            
+            if not has_super:
+                return False
+
+        return True
+          
     def contains(self, _type, value):
         t = type(_type)
         
@@ -421,6 +438,28 @@ class TypeEngine(object):
             return ALL((_type.item_type.contains(v) for v in value))
 
         return False
+
+    type_var_cache = { unit : [] }
+
+    def get_type_vars(self, _type):
+        if _type not in type_var_cache:
+            t = type(_type)
+
+            if t == ArrowType:
+                vs = ( self.get_type_vars(_type.l_type) 
+                     + self.get_type_vars(_type.r_type))
+            if t == TypeVar:
+                vs = [_type]
+            if t == ProductType:
+                vs = []
+                for ty in _type.types:
+                    vs = vs + self.get_type_vars(ty)
+            if t == ListType:
+                vs = self.get_type_vars(t.item_type)
+
+            self.type_var_cache[_type] = vs
+
+        return type_var_cache[_type]
 
     def unify(self, l, r):
         if not l.is_variable() or not r.is_variable():
