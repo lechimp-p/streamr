@@ -434,11 +434,15 @@ class TestUnify(object):
         assert unit.unify(unit) == unit
         assert base.unify(base) == base 
     def test_noUnifyWithDifferent(self, unit, base):
-        assert unit.unify(base) is None 
-        assert base.unify(unit) is None 
+        with pytest.raises(TypeError) as excinfo:
+            unit.unify(base)
+        assert "unify" in str(excinfo.value)
+        with pytest.raises(TypeError) as excinfo:
+            base.unify(unit)
+        assert "unify" in str(excinfo.value)
     def test_unifyWithSubclass(self, base, sub):
-        assert base.unify(sub) is sub
-        assert sub.unify(base) is sub
+        assert base.unify(sub) == sub
+        assert sub.unify(base) == sub
     def test_unifyWithTypeVar(self, base):
         v = Type.get()
         assert base.unify(v) == base
@@ -457,8 +461,12 @@ class TestUnify(object):
         v1 = Type.get()
         p1 = Type.get(v1,base)
         p2 = Type.get(other,v1)
-        assert p1.unify(p2) is None
-        assert p2.unify(p1) is None
+        with pytest.raises(TypeError) as excinfo:
+            p1.unify(p2)
+        assert "unify" in str(excinfo.value)
+        with pytest.raises(TypeError) as excinfo:
+            p2.unify(p1)
+        assert "unify" in str(excinfo.value)
     def test_unifyProductTypes2(self, base, sub):
         v1 = Type.get()
         p1 = Type.get(v1, base)

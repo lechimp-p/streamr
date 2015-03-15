@@ -80,13 +80,9 @@ class Type(object):
         Try to unify this type with the other, that is try to find a smaller type
         that only contains values, that are contained in this and the other type.
 
-        Either returns None when unification could not be achieved or the unified
-        type.
+        Returns unified type, raises TypeError when unification can't be achieved.
         """
-        t = Type.engine.unify(self, other)
-        if t is not None:
-            return t[0]
-        return None
+        return Type.engine.unify(self, other)
 
     @staticmethod
     def get(*py_types):
@@ -120,12 +116,6 @@ class Type(object):
 
         return ProductType.get(*py_types)
 
-    def is_variable(self):
-        """
-        Check whether type contains any variable part.
-        """
-        return Type.engine.is_variable(self)
-#
 #    def get_variables(self):
 #        """
 #        Get all type variables in this type.
@@ -203,8 +193,8 @@ class TypeVar(Type):
     """
     Represents a type that has yet to be inferred.
     """
-    def __init__(self):
-        self.constraints = []
+    def __init__(self, *py_types):
+        self.constraints = list(py_types) 
 
     def constrain(self, py_type):
         """
@@ -218,16 +208,29 @@ class TypeVar(Type):
             if issubclass(c,py_type):
                 return self
 
-        t = TypeVar()
-        t.constraints = self.constraints + [py_type]
-        return t
+        constraints = ( list(filter( lambda x: not issubclass(py_type, x)
+                            , self.constraints))
+                      + [py_type])
+
+        return TypeVar(*constraints)
 
     @staticmethod
     def get():
         return TypeVar()
 
     def __str__(self):
-        return "#%s" % (str(id(self))[-3:-1])
+        if len(self.constraints) == 0:
+            return "#%s" % (str(id(self))[-3:-1])
+
+        def to_str(pt):
+            s = str(pt)
+            return re.match(".*[']([^']+)[']", s).group(1)
+
+        return "(%s)" % reduce("%s & %s", map(to_str, self.constraints))
+
+    def free(self):
+        return true
+        
 
 class ProductType(Type):
     """
@@ -461,46 +464,74 @@ class TypeEngine(object):
 
         return type_var_cache[_type]
 
+    unified_type_cache = {}
+
     def unify(self, l, r):
-        if not l.is_variable() or not r.is_variable():
+        if (l,r) in self.unified_type_cache:
+            return self.unified_type_cache[(l,t)]
+
+        constraints = {} 
+        substitutions = {}
+
+        def cant_unify(l,r):
+            raise TypeError("Can't unify '%s' and '%s'" % (l,r))
+
+        def substitute(v, t):
+            substitutions[v] = t
+            return v
+
+        def constraint(v,r):
+            v = Type.get()
+            for c in l.constraints + r.constraints:
+                v = v.constrain(c)
+
+
+            constraints.append(v)
+            return v
+
+        def unifies(l,r):
             if l == r:
-                return l, {} 
-            if l >= r:
-                return l, {} 
-            if r >= l:
-                return r, {} 
+                return l
 
-        if isinstance(l, TypeVar):
-            return r, {l : r}
+            if isinstance(l, TypeVar):
+                if isinstance(r, TypeVar):
+                    return constraint(l,r)
+                if len(l.constraints) == 0:
+                    return substitute(l, r)
+                cant_unify(l,r)
+            if isinstance(r, TypeVar):
+                if len(r.constraints) == 0:
+                    return substitute(r, l)
+                cant_unify(l,r)
 
-        if isinstance(r, TypeVar):
-            return l, {r : l} 
+            if type(l) != type(r):
+                cant_unify(l,r)
 
-        if isinstance(l, ListType) and isinstance(r, ListType):
-            it = self.unify(l.item_type, r.item_type)
-            if it is None:
-                return None
-            return Type.get([it[0]]), it[1]
+            if type(l) == ListType:
+                t = unifies(l.item_type, r.item_type)
+                return ListType.get(t)
 
-        if isinstance(l, ProductType) and isinstance(r, ProductType):
-            if len(l.types) != len(r.types):
-                return None
+            if type(l) == ProductType:
+                if len(l.types) != len(r.types):
+                    cant_unify(l,r)
+                return ProductType.get(*list(map(lambda x: unifies(*x), zip(l.types, r.types))))
 
-            repl = {}
-            for lt, rt in zip(l.types, r.types):
-                it = self.unify(lt, rt, env)
-                if it is None:
-                    return None
-                repl = self._merge_replacements(repl, it[1])
-                if repl is None:
-                    return None
-            types = []
-            for lt in l.types:
-                types.append(self._apply_replacements(repl, lt))
+            cant_unify(l,r)
 
-            return Type.get(*types), env 
+        def do_substitutions(t):
+            if t in substitutions:
+                return substitutions[t]
 
-        return None
+            if type(t) == ListType:
+                return ListType.get(do_substitutions(t.item_type))
+
+            if type(t) == ProductType:
+                return ProductType.get(*map(do_substitutions, t.types))
+            
+            return t
+
+        self.unified_type_cache[(l,r)] = do_substitutions(unifies(l,r))
+        return self.unified_type_cache[(l,r)]
 
     def apply(self, l, r, replacements = None):
         if not isinstance(l, ArrowType):
