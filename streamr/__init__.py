@@ -3,7 +3,7 @@
 # TODO: Clean this up, when user interface is defined.
 from .simple import Producer, Consumer, Pipe, ConstP, ListP, ListC
 from .core import Resume, MayResume, Stop
-import .composition
-import .runtime 
+import streamr.composition
+import streamr.runtime 
 
 __all__ = ["Producer", "Consumer", "Pipe", "ConstP", "ListP", "ListC"]
