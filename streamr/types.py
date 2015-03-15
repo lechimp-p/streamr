@@ -377,28 +377,6 @@ class TypeEngine(object):
 
         return False
 
-    type_var_cache = { unit : [] }
-
-    def get_type_vars(self, _type):
-        if _type not in type_var_cache:
-            t = type(_type)
-
-            if t == ArrowType:
-                vs = ( self.get_type_vars(_type.l_type) 
-                     + self.get_type_vars(_type.r_type))
-            if t == TypeVar:
-                vs = [_type]
-            if t == ProductType:
-                vs = []
-                for ty in _type.types:
-                    vs = vs + self.get_type_vars(ty)
-            if t == ListType:
-                vs = self.get_type_vars(t.item_type)
-
-            self.type_var_cache[_type] = vs
-
-        return type_var_cache[_type]
-
     unified_type_cache = {}
 
     def unify(self, l, r, with_substitutions = False):
