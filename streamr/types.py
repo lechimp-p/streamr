@@ -425,13 +425,9 @@ class TypeEngine(object):
 
         substitutions = {}
 
-        self.unified_type_cache[(l,r)] = ( self._do_substitutions( 
-                                                      substitutions
-                                                    , self._unifies(
-                                                          substitutions
-                                                        , l
-                                                        , r))
-                                         , substitutions)
+        unified = self._unifies(substitutions, l, r)
+        substituted = self._do_substitutions(substitutions, unified)
+        self.unified_type_cache[(l,r)] = (substituted, substitutions)
         return self.unify(l, r)
 
     @staticmethod
@@ -478,8 +474,9 @@ class TypeEngine(object):
         if type(l) == ProductType:
             if len(l.types) != len(r.types):
                 TypeEngine._cant_unify(l,r)
-            return ProductType.get(*list(map( lambda x: TypeEngine._unifies(subs, *x)
-                                            , zip(l.types, r.types))))
+            m = lambda x: TypeEngine._unifies(subs, *x)
+            z = zip(l.types, r.types)
+            return ProductType.get(*list(map(m,z)))
 
         TypeEngine._cant_unify(l,r)
 
@@ -492,8 +489,8 @@ class TypeEngine(object):
             return ListType.get(TypeEngine._do_substitutions(subs, t.item_type))
 
         if type(t) == ProductType:
-            return ProductType.get(*list(map(lambda x: TypeEngine._do_substitutions(subs, x)
-                                            , t.types)))
+            m = lambda x: TypeEngine._do_substitutions(subs, x)
+            return ProductType.get(*list(map(m, t.types)))
         
         return t
 
