@@ -215,7 +215,7 @@ class ComposedStreamProcessor(StreamProcessor):
 
     Handles initialisation and shutdown of the sub processors.
     """
-    def __init__(self, type_in, type_out, processors, substitutions = {}):
+    def __init__(self, type_in, type_out, processors, substitutions):
         assert ALL(isinstance(p, StreamProcessor) for p in processors)
 
         tinit = (Type.get(*[p.type_init() for p in processors])
@@ -281,7 +281,7 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
         tin = Type.get(*[p.type_in() for p in processors])
         tout = Type.get(*[p.type_out() for p in processors])
 
-        super(ParallelStreamProcessor, self).__init__(tin, tout, processors)
+        super(ParallelStreamProcessor, self).__init__(tin, tout, processors, {})
 
     def get_initial_env(self, *params):
         env = super(ParallelStreamProcessor, self).get_initial_env(*params)

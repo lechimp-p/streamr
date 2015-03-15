@@ -453,7 +453,7 @@ class TypeEngine(object):
         substitutions = {}
         r_type = arrows[0].r_type
         for a in arrows[1:]:
-            _ = self._unifies(substitutions, r_type, a.l_type)
+            self._unifies(substitutions, r_type, a.l_type)
             r_type = a.r_type
 
         l_t = self._do_substitutions(substitutions, arrows[0].l_type)

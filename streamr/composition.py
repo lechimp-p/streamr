@@ -27,7 +27,7 @@ class SimpleCompositionEngine(object):
     @staticmethod
     def _composable(l, r):
         try:
-            l.type_arrow() % r.type_arrow()
+            ftw = l.type_arrow() % r.type_arrow()
             return True
         except TypeError:
             return False
