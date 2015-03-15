@@ -5,3 +5,5 @@ from .simple import Producer, Consumer, Pipe, ConstP, ListP, ListC
 from .core import Resume, MayResume, Stop
 import streamr.composition
 import streamr.runtime 
+
+__all__ = [Producer, Consumer, Pipe, ConstP, ListP, ListC]

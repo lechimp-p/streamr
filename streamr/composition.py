@@ -10,11 +10,11 @@ class SimpleCompositionEngine(object):
     Could be switched for a more sophisticated engine, e.g. for performance purpose.
     """
     def compose_sequential(self, left, right):
-        not_composable = (  left.is_consumer()
-                         or right.is_producer()
-                         or left.is_runnable()
-                         or right.is_runnable()
-                         or not self._composable(left, right))
+        not_composable = ( left.is_consumer() or 
+                           right.is_producer() or
+                           left.is_runnable() or 
+                           right.is_runnable() or 
+                           not self._composable(left, right))
 
         if not_composable:
             raise TypeError("Can't compose %s and %s." % (left, right))
@@ -27,7 +27,7 @@ class SimpleCompositionEngine(object):
     @staticmethod
     def _composable(l, r):
         try:
-            ftw = l.type_arrow() % r.type_arrow()
+            l.type_arrow().__mod__(r.type_arrow())
             return True
         except TypeError:
             return False
