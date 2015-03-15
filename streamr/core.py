@@ -260,7 +260,6 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
         env = super(SequentialStreamProcessor, self).get_initial_env(*params)
         env["rt"] = self.runtime_engine.get_initial_env_for_seq(self.processors)
         return env
-        
 
     def step(self, env, await, send):
         return self.runtime_engine.step_seq( self.processors

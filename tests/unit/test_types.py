@@ -325,7 +325,7 @@ class TestArrowType(object):
         t3 = ArrowType.get(base, base)
 
         repl = {}
-        t4 = t2.compose_with(t3)
+        t4 = t2.compose_with(t3, repl)
         assert repl == { t1 : base }
 
 

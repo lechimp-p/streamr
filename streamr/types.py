@@ -76,6 +76,12 @@ class Type(object):
         """
         return Type.engine.is_variable(self)
 
+    def get_variables(self):
+        """
+        Get all type variables in this type.
+        """
+        return Type.engine.get_variables(self)
+
     def is_satisfied_by(self, other):
         """
         Check whether this type is satisfied by another type by
@@ -261,18 +267,7 @@ class ArrowType(Type):
         """
         Get the type of the composition of this arrow type with another arrow type.
         """
-        if not isinstance(other, ArrowType):
-            raise TypeError("Expected arrow type, not '%s'" % other)
-
-        if replacements is None:
-            replacements = {}
-
-        r_type = Type.engine.apply(other, self.r_type, replacements)
-        l_type = self.l_type
-        for key, value in replacements.items():
-            l_type = Type.engine.replace(l_type, key, value) 
-
-        return ArrowType.get(l_type, r_type)
+        return Type.engine.compose(self, other, replacements)
 
     def type_in(self):
         return self.l_type
@@ -386,25 +381,47 @@ class TypeEngine(object):
         if not isinstance(l, ArrowType):
             raise ValueError("Can't call non arrow type.")
 
-        if not l.l_type.is_satisfied_by(r):
-            raise TypeError("Can't compose '%s' and '%s'" % (l,r))
+        if not self.is_satisfied_by(l.l_type, r, replacements):
+            raise TypeError("Can't apply '%s' to '%s'" % (l,r))
 
-        if isinstance(l.l_type, TypeVar):
-            replacements[l.l_type] = r
-            return self.replace(l.r_type, l.l_type, r)
+        return self.replaceMany(l.r_type, replacements)
+    
+    def compose(self, l, r, replacements):
+        if not isinstance(l, ArrowType) or not isinstance(r, ArrowType):
+            raise TypeError("Expected arrows type, not '%s'" % other)
 
-        if l.l_type > r:
-            raise ValueError("Can't use %s as %s." % (r, l.l_type))
+        if replacements is None:
+            replacements = {}
 
-        return l.r_type
+        if not l.r_type.is_variable() and l.r_type != r.l_type:
+            raise TypeError("Can't compose '%s' and '%s'" % (l, r))
+
+        if l.r_type.is_variable():
+            if not self.is_satisfied_by(l.r_type, r.l_type, replacements):
+                raise TypeError("Can't compose '%s' and '%s'" % (l, r))
+            l_type = self.replaceMany(l.l_type, replacements)
+            r_type = r.r_type
+        else:
+            l_type = l.l_type
+            r_type = r.r_type
+
+        return ArrowType.get(l_type, r_type)
+
+
 
     def replace(self, where, what, wit):
+        return self.replaceMany(where, { what : wit })
+
+    def replaceMany(self, where, replacements):
         t = type(where)
 
-        if where == what:
-            return wit
+        if where in replacements:
+            replmnt = replacements[where]
+            while isinstance(replmnt, TypeVar) and replmnt in replacements:
+                replmnt = replacements[where]
+            return replmnt
 
-        repl = lambda x: self.replace(x, what, wit)
+        repl = lambda x: self.replaceMany(x, replacements)
         if t == ProductType:
             return ProductType.get(*(repl(x) for x in where.types))
         if t == ListType:
@@ -456,14 +473,41 @@ class TypeEngine(object):
 
         return TypeEngine.is_variable_cache[_type]
 
-    def is_satisfied_by(self, _type, other):
+    def get_variables(self, _type, vlist = None):
+        if vlist is None:
+            vlist = []
+
+        t = type(_type)
+
+        if t == TypeVar:
+            is_variable = True
+        elif t == PyType:
+            is_variable = False
+        elif t == ListType:
+            is_variable = self.is_variable(_type.item_type)
+        elif t == ProductType:
+            is_variable = ANY(self.is_variable(i) for i in _type.types)
+        elif t == ArrowType:
+            is_variable = ( self.is_variable(t.l_type) 
+                            or self.is_variable(t.r_type) )
+        else:
+            raise TypeError("Can't tell if '%s' is variable" % _type)
+
+        TypeEngine.is_variable_cache[_type] = is_variable
+
+        return TypeEngine.is_variable_cache[_type]
+
+
+
+    def is_satisfied_by(self, _type, other, replacements = None, free = []):
         # Holds the replacements for type variables
-        var_replacements = {}
+        if replacements is None:
+            replacements = {}
 
         def get_replacement(v):
-            if not v in var_replacements:
+            if not v in replacements:
                 return None
-            r = var_replacements[v]
+            r = replacements[v]
             if isinstance(r, TypeVar):
                 return get_replacement(r)
             return r
@@ -472,7 +516,7 @@ class TypeEngine(object):
             repl = get_replacement(v)
             if repl is not None:
                 return repl <= l
-            var_replacements[v] = l
+            replacements[v] = l
             return True
 
         def go(l,r):
