@@ -227,52 +227,13 @@ class LambdaPipe(Pipe):
         send(self._lambda(await()))
         return MayResume()  
 
-#def pipe(type_in, type_out):
-#    """
-#    Decorate a function to be a pipe.
-#    """
-#    def decorator(fun):
-#        return Pipe((), 
-
-
-def toPipe(type_in, type_out):
-    return lambda fun: NonEnvPipe(type_in, type_out, fun)
-
-def transformation(type_in, type_out):
-    def call_transformer(fun, await):
-        while True:
-            value = await()
-            yield fun(value)
-
-    return lambda fun: NonEnvPipe( 
-                            type_in, type_out
-                            , lambda await: call_transformer(fun, await)) 
-
-def chunks(type, amount):
-    @toPipe(type, tuple(amount * [type]))
-    def chunks(await):
-        while True:
-            values = tuple([await() for i in range(0,amount)])
-            yield values
-    return chunks
-
-def echo(type, amount):
-    @toPipe(type, type)
-    def echo(await):
-        while True:
-            value = await()
-            for i in range(0, amount):
-                yield value
-    return echo
-
-def gate(type, allow_if):
-    @toPipe(type, type)
-    def gate(await):
-        while True:
-            value = await()
-            if allow_if(value):
-                yield value 
-    return gate
+def pipe(type_in, type_out):
+    """
+    Decorate a function to be a pipe.
+    """
+    def decorator(fun):
+        return LambdaPipe(type_in, type_out, fun)
+    return decorator
 
 
 # Maybe to be reused for generator style producers

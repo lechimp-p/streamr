@@ -3,7 +3,7 @@
 import pytest
 
 from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, ConstP,
-                    ListP, ListC)
+                    ListP, ListC, pipe)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
 from streamr.types import Type, unit
 
@@ -281,3 +281,19 @@ class TestLambdaPipe(_TestPipe):
     @pytest.fixture
     def result(self, types):
         return [i[1] for i in types[3]]
+
+class TestPipeDecorator(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        @pipe(int, int)
+        def double(a):
+            return 2 * a
+        return double
+
+    @pytest.fixture
+    def test_values(self):
+        return [i for i in range(0, 10)]
+
+    @pytest.fixture
+    def result(self):
+        return [2 * i for i in range(0, 10)]    
