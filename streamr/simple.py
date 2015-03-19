@@ -216,6 +216,7 @@ class ListC(Consumer):
         self.append_to.append(await())
         return MayResume()
 
+
 class LambdaPipe(Pipe):
     """
     A pipe that processes each piece of data with a lambda.
@@ -227,14 +228,66 @@ class LambdaPipe(Pipe):
         send(self._lambda(await()))
         return MayResume()  
 
-def pipe(type_in, type_out):
+
+def pipe(type_in, type_out, _lambda = None):
     """
     Decorate a function to be a pipe.
     """
-    def decorator(fun):
-        return LambdaPipe(type_in, type_out, fun)
-    return decorator
+    if _lambda is None:
+        def decorator(fun):
+            return LambdaPipe(type_in, type_out, fun)
 
+        return decorator
+    return LambdaPipe(type_in, type_out, _lambda)
+
+
+class FilterPipe(Pipe):
+    """
+    A pipe that only lets data pass that matches a predicate.
+    """
+    max_tries_per_step = 10
+
+    def __init__(self, type_init, type_io):
+        super(FilterPipe, self).__init__(type_init, type_io, type_io)
+
+    def transform(self, env, await, send):
+        for i in range(0, self.max_tries_per_step):
+            val = await()
+            if self.predicate(env, val):
+                send(val)
+                return MayResume()
+        return MayResume()
+
+    def predicate(self, env, val):
+        """
+        Check whether the value is ok. Return bool.
+        """
+        raise NotImplementedError("FilterPipe::predicate: implement "
+                                  "me for class %s!" % type(self))
+
+
+class LambdaFilterPipe(FilterPipe):
+    """
+    A filter whos predicate is a lambda.
+    """
+    def __init__(self, type_io, _lambda):
+        super(LambdaFilterPipe, self).__init__((), type_io)
+        self._lambda = _lambda
+    def predicate(self, env, val):
+        return self._lambda(val)
+
+
+def filter_p(type_io, _lambda = None):
+    """
+    Decorate a predicate and get a pipe that only lets values
+    through when the predicate matches.
+    """
+    if _lambda is None:
+        def decorator(fun):
+            return LambdaFilterPipe(type_io, fun)
+
+        return decorator
+    return LambdaFilterPipe(type_io, _lambda)
 
 # Maybe to be reused for generator style producers
 #                

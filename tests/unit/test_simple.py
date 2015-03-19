@@ -3,7 +3,7 @@
 import pytest
 
 from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, ConstP,
-                    ListP, ListC, pipe)
+                    ListP, ListC, pipe, filter_p)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
 from streamr.types import Type, unit
 
@@ -297,3 +297,55 @@ class TestPipeDecorator(_TestPipe):
     @pytest.fixture
     def result(self):
         return [2 * i for i in range(0, 10)]    
+
+
+from streamr.simple import FilterPipe
+        
+class TestFilterPipe(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        class MyFilterPipe(FilterPipe):
+            def predicate(self, env, a):
+                return a % 2 == 0
+        return MyFilterPipe((), int)
+
+    @pytest.fixture
+    def test_values(self):
+        return [i for i in range(0, 10)]
+
+    @pytest.fixture
+    def result(self):
+        return [2 * i for i in range(0, 5)]    
+
+
+from streamr.simple import LambdaFilterPipe
+
+class TestLambdaFilterPipe(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        return LambdaFilterPipe(int, lambda x : x % 2 == 2)
+
+    @pytest.fixture
+    def test_values(self):
+        return [i for i in range(0, 10)]
+
+    @pytest.fixture
+    def result(self):
+        return [2 * i for i in range(0, 5)]    
+
+                
+class TestFilterDecorator(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        @filter_p(int)
+        def even(a):
+            return a % 2 == 0
+        return even 
+
+    @pytest.fixture
+    def test_values(self):
+        return [i for i in range(0, 10)]
+
+    @pytest.fixture
+    def result(self):
+        return [2 * i for i in range(0, 5)]    
