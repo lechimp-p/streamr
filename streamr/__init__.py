@@ -6,4 +6,4 @@ from .core import Resume, MayResume, Stop
 import streamr.composition
 import streamr.runtime 
 
-__all__ = ["Producer", "Consumer", "Pipe", "ConstP", "ListP", "ListC", "pipe", "sfilter"]
+__all__ = ["Producer", "Consumer", "Pipe", "ConstP", "ListP", "ListC", "pipe", "filter_p"]
