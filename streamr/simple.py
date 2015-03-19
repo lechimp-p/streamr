@@ -216,6 +216,24 @@ class ListC(Consumer):
         self.append_to.append(await())
         return MayResume()
 
+class LambdaPipe(Pipe):
+    """
+    A pipe that processes each piece of data with a lambda.
+    """
+    def __init__(self, type_in, type_out, _lambda):
+        super(LambdaPipe, self).__init__((), type_in, type_out)
+        self._lambda = _lambda
+    def transform(self, env, await, send):
+        send(self._lambda(await()))
+        return MayResume()  
+
+#def pipe(type_in, type_out):
+#    """
+#    Decorate a function to be a pipe.
+#    """
+#    def decorator(fun):
+#        return Pipe((), 
+
 
 def toPipe(type_in, type_out):
     return lambda fun: NonEnvPipe(type_in, type_out, fun)

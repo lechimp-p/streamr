@@ -259,5 +259,25 @@ class TestListConsumer(_TestConsumer):
         
         sp = p >> c
         assert sp.type_result() == [int]
-        
 
+from streamr.simple import LambdaPipe
+        
+class TestLambdaPipe(_TestPipe):
+    @pytest.fixture( params = 
+        [ (int,int,lambda x:x*2, [(i, i*2) for i in range(0,10)])
+        , (str,str,lambda x:"\"%s\""%x, [("str", "\"str\"")]*10)
+        ] )
+    def types(self, request):
+        return request.param
+
+    @pytest.fixture
+    def pipe(self, types):
+        return LambdaPipe(types[0], types[1], types[2])
+
+    @pytest.fixture
+    def test_values(self, types):
+        return [i[0] for i in types[3]]
+
+    @pytest.fixture
+    def result(self, types):
+        return [i[1] for i in types[3]]
