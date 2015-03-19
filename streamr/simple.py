@@ -217,26 +217,6 @@ class ListC(Consumer):
         return MayResume()
 
 
-
-class NonEnvPipe(Pipe):
-    def __init__(self, type_in, type_out, fun):
-        self._type_in = type_in
-        self._type_out = type_out
-        self.fun = fun
-    
-    def type_in(self):
-        return self._type_in
-    def type_out(self):
-        return self._type_out
-
-    def get_initial_env(self):
-        return None
-    def shutdown_env(self, env):
-        pass
-
-    def transform(self, env, await):
-        return self.fun(await)
-
 def toPipe(type_in, type_out):
     return lambda fun: NonEnvPipe(type_in, type_out, fun)
 
