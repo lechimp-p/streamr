@@ -197,9 +197,10 @@ class ListC(Consumer):
     Either appends to the list given in the constructor or creates a fresh list 
     in get_initial_env.
     """
-    def __init__(self, append_to = None):
+    def __init__(self, append_to = None, max_amount = None):
         tvar = Type.get()
         self.append_to = append_to
+        self.max_amount = max_amount 
         if append_to is None:
             super(ListC, self).__init__((), [tvar], tvar)
         else:
@@ -212,7 +213,12 @@ class ListC(Consumer):
     def consume(self, env, await):
         if self.append_to is None:
             env.append(await())
+            if self.max_amount is not None and len(env) >= self.max_amount:
+                return Stop(env)
             return MayResume(env)
+
+        if self.max_amount is not None and len(self.append_to) > self.max_amount:
+            return Stop()
         self.append_to.append(await())
         return MayResume()
 

@@ -260,6 +260,11 @@ class TestListConsumer(_TestConsumer):
         sp = p >> c
         assert sp.type_result() == [int]
 
+    def test_maxAmount(self):
+        c = ListC(max_amount = 2)
+        sp = ConstP(10) >> c
+        assert sp.run() == [10, 10]
+
 
 class TestTransformationDecorator(_TestPipe):
     @pytest.fixture
