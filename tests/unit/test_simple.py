@@ -260,12 +260,30 @@ class TestListConsumer(_TestConsumer):
         sp = p >> c
         assert sp.type_result() == [int]
 
+
+class TestTransformationDecorator(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        @pipe(int, int)
+        def double(await, send):
+            send(2 * await())
+        return double
+
+    @pytest.fixture
+    def test_values(self):
+        return [i for i in range(0, 10)]
+
+    @pytest.fixture
+    def result(self):
+        return [2 * i for i in range(0, 10)]    
+
+
 from streamr.simple import LambdaPipe
         
 class TestLambdaPipe(_TestPipe):
     @pytest.fixture( params = 
-        [ (int,int,lambda x:x*2, [(i, i*2) for i in range(0,10)])
-        , (str,str,lambda x:"\"%s\""%x, [("str", "\"str\"")]*10)
+        [ (int,int,lambda a,s:s(a()*2), [(i, i*2) for i in range(0,10)])
+        , (str,str,lambda a,s:s("\"%s\""%a()), [("str", "\"str\"")]*10)
         ] )
     def types(self, request):
         return request.param
@@ -281,6 +299,24 @@ class TestLambdaPipe(_TestPipe):
     @pytest.fixture
     def result(self, types):
         return [i[1] for i in types[3]]
+
+
+class TestPipeDecorator(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        @pipe(int, int)
+        def double(await, send):
+            send(2 * await())
+        return double
+
+    @pytest.fixture
+    def test_values(self):
+        return [i for i in range(0, 10)]
+
+    @pytest.fixture
+    def result(self):
+        return [2 * i for i in range(0, 10)]    
+
 
 class TestTransformationDecorator(_TestPipe):
     @pytest.fixture

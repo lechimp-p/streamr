@@ -216,9 +216,6 @@ class ListC(Consumer):
         self.append_to.append(await())
         return MayResume()
 
-def pipe(type_in, type_out, _lambda = None):
-    pass
-
 
 class LambdaPipe(Pipe):
     """
@@ -228,8 +225,21 @@ class LambdaPipe(Pipe):
         super(LambdaPipe, self).__init__((), type_in, type_out)
         self._lambda = _lambda
     def transform(self, env, await, send):
-        send(self._lambda(await()))
+        self._lambda(await, send)
         return MayResume()  
+
+
+def pipe(type_in, type_out, _lambda = None):
+    """
+    Decorate a function to become a pipe that works via await and send and
+    resumes infinitely.
+    """
+    if _lambda is None:
+        def decorator(fun):
+            return LambdaPipe(type_in, type_out, fun)
+
+        return decorator
+    return LambdaPipe(type_in, type_out, _lambda)
 
 
 def transformation(type_in, type_out, _lambda = None):
@@ -238,7 +248,8 @@ def transformation(type_in, type_out, _lambda = None):
     """
     if _lambda is None:
         def decorator(fun):
-            return LambdaPipe(type_in, type_out, fun)
+            l = lambda await, send: send(fun(await()))
+            return LambdaPipe(type_in, type_out, l)
 
         return decorator
     return LambdaPipe(type_in, type_out, _lambda)
