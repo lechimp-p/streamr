@@ -14,7 +14,7 @@ sp = pr2 >> co2
 print (sp.run())
 
 def AppendWord(word):
-    @pipe(str, str)
+    @transformation(str, str)
     def append(inp):
         return "%s %s" % (inp, word)
     return append

@@ -216,6 +216,9 @@ class ListC(Consumer):
         self.append_to.append(await())
         return MayResume()
 
+def pipe(type_in, type_out, _lambda = None):
+    pass
+
 
 class LambdaPipe(Pipe):
     """
@@ -229,7 +232,7 @@ class LambdaPipe(Pipe):
         return MayResume()  
 
 
-def pipe(type_in, type_out, _lambda = None):
+def transformation(type_in, type_out, _lambda = None):
     """
     Decorate a function to be a pipe.
     """
