@@ -309,6 +309,11 @@ def filter_p(type_io, _lambda = None):
         return decorator
     return LambdaFilterPipe(type_io, _lambda)
 
+_any = Type.get()
+@transformation(_any, _any)
+def tee(v):
+    return v,v
+
 # Maybe to be reused for generator style producers
 #                
 #class EnvAndGen(object):
