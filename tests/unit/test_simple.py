@@ -215,7 +215,7 @@ class TestListProducer(_TestProducer):
         assert p.type_init() == unit
 
     def test_complexTypeOut(self):
-        p = ListP([([int], str)])
+        p = ListP([([10], "foo")])
         assert p.type_out() == Type.get([int], str)
 
 

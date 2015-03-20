@@ -147,14 +147,10 @@ class ListP(Producer):
             if len(vlist) == 0:
                 raise ValueError("vlist is empty list.")
 
-            item_type = self._getItemType(vlist)
+            item_type = Type.infer(vlist[0])
             self._checkList(vlist, item_type)
             self.vlist = list(vlist)
             super(ListP, self).__init__((), item_type)
-
-    @staticmethod
-    def _getItemType(vlist):
-        return Type.get(type(vlist[0]))
 
     @staticmethod
     def _checkList(vlist, item_type):
