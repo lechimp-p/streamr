@@ -214,6 +214,10 @@ class TestListProducer(_TestProducer):
         p = ListP([10]*10)
         assert p.type_init() == unit
 
+    def test_complexTypeOut(self):
+        p = ListP([([int], str)])
+        assert p.type_out() == Type.get([int], str)
+
 
 class TestListConsumer(_TestConsumer):
     @pytest.fixture( params = ["result", "append"])
