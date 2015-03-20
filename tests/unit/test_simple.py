@@ -364,7 +364,7 @@ from streamr.simple import LambdaFilterPipe
 class TestLambdaFilterPipe(_TestPipe):
     @pytest.fixture
     def pipe(self):
-        return LambdaFilterPipe(int, lambda x : x % 2 == 2)
+        return LambdaFilterPipe(int, lambda x : x % 2 == 0)
 
     @pytest.fixture
     def test_values(self):
