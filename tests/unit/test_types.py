@@ -438,3 +438,23 @@ class TestUnify(object):
         p2 = Type.get(sub, v1)
         assert p1.unify(p2) == (sub, sub)
         assert p2.unify(p1) == (sub, sub)
+
+class TestInfer(object):
+    def test_inferPyTypes(self):
+        assert Type.infer(10) == Type.get(int)
+        assert Type.infer("str") == Type.get(str)
+
+    def test_inferTuple(self):
+        assert Type.infer((10, "str")) == Type.get(int, str)
+
+    def test_inferList(self):
+        assert Type.infer([10, 20, 30]) == Type.get([int])
+
+    def test_inferRecursive(self):
+        assert Type.infer([(10,10)]) == Type.get([(int, int)])
+        assert Type.infer(([10], 10)) == Type.get(([int], int))
+
+    def test_noInferMixed(self):
+        with pytest.raises(TypeError) as excinfo:
+            Type.infer([10, "str"])
+        assert "infer" in str(excinfo.value)
