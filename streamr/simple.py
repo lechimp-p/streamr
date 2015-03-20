@@ -208,14 +208,18 @@ class ListC(Consumer):
 
     def get_initial_env(self):
         if self.append_to is None:
-            return []
+            return [[], False]
+        return [self.append_to, False]
 
     def consume(self, env, await):
+        if not env[1]:
+            env[1] = True
+            return MayResume(env[0])
         if self.append_to is None:
-            env.append(await())
-            if self.max_amount is not None and len(env) >= self.max_amount:
-                return Stop(env)
-            return MayResume(env)
+            env[0].append(await())
+            if self.max_amount is not None and len(env[0]) >= self.max_amount:
+                return Stop(env[0])
+            return MayResume(env[0])
 
         if self.max_amount is not None and len(self.append_to) > self.max_amount:
             return Stop()
