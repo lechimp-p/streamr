@@ -90,6 +90,13 @@ class Type(object):
         return Type.engine.substitute_in(self, substitutions)
 
     @staticmethod
+    def infer(value):
+        """
+        Infer the type of a value.
+        """
+        return Type.engine.infer(value)
+
+    @staticmethod
     def get(*py_types):
         """
         Factory method for types. Tries to turn a python value into a (possibly 
@@ -465,6 +472,21 @@ class TypeEngine(object):
 
     def substitute_in(self, _type, substitutions):
         return self._do_substitutions(substitutions, _type)
+
+    def infer(self, value):
+        if isinstance(value, tuple):
+            return Type.get(*[self.infer(v) for v in value])
+        if isinstance(value, list):
+            if len(value) == 0:
+                raise ValueError("Can't infer type of empty list.")
+            h = value[0]
+            ht = self.infer(h)
+            for v in value:
+                if not ht.contains(v):
+                    raise ValueError("Can't infer type of mixed type list.")
+            return Type.get([ht])
+        return Type.get(type(value))
+            
 
     @staticmethod
     def _cant_unify(l,r):

@@ -455,6 +455,6 @@ class TestInfer(object):
         assert Type.infer(([10], 10)) == Type.get(([int], int))
 
     def test_noInferMixed(self):
-        with pytest.raises(TypeError) as excinfo:
+        with pytest.raises(ValueError) as excinfo:
             Type.infer([10, "str"])
         assert "infer" in str(excinfo.value)
