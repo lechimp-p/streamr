@@ -2,7 +2,7 @@
 
 import pytest
 
-from streamr.io import read_file
+from streamr.io import read_file, to_json
 from streamr.simple import ListP, ListC
 from test_core import _TestPipe
 import os
@@ -39,10 +39,10 @@ class TestToJSON(_TestPipe):
 
     @pytest.fixture
     def test_values(self, result):
-        return [json.dumps(d) for d in dicts]
+        return [json.dumps(d) for d in result]
 
     @pytest.fixture
-    def result(self, test_values):
+    def result(self):
         return [ {}
                , { "foo" : "bar" }
                , { "foo" : 3 }
