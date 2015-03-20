@@ -6,6 +6,7 @@ from streamr.io import read_file
 from streamr.simple import ListP, ListC
 from test_core import _TestPipe
 import os
+import json
 
 class TestReadFile(_TestPipe):
     @pytest.fixture
@@ -23,6 +24,27 @@ class TestReadFile(_TestPipe):
     def result(self, test_values):
         return [open(fn, "r").read() for fn in test_values]
 
-    def test_noFile(self):
-        pass
+    def test_noFile(self, pipe):
+        pr = ListP(["/this/most/probably/wont/point/to/a/file"])
+        co = ListC()
+
+        sp = pr >> pipe >> co
+        res = sp.run()
+        assert res == []
      
+class TestToJSON(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        return to_json 
+
+    @pytest.fixture
+    def test_values(self, result):
+        return [json.dumps(d) for d in dicts]
+
+    @pytest.fixture
+    def result(self, test_values):
+        return [ {}
+               , { "foo" : "bar" }
+               , { "foo" : 3 }
+               , { "foo" : { "bar" : "baz" } }
+               ]

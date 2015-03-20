@@ -14,7 +14,20 @@ def read_file(await, send):
     """
     Open the file with name given by upstream, read it completely and send it
     downstream.
+
+    Will drop filenames that can't be opened.
     """
     with open(await()) as f:
         send(f.read())
     return MayResume()
+
+
+# TODO: This most probably does not belong here.
+@pipe(str, dict)
+def to_json(await, send):
+    """
+    Parse string from upstream as json.
+
+    Will drop strings that can't be parsed as json.
+    """
+    pass
