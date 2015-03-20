@@ -2,7 +2,7 @@
 
 import pytest
 
-from streamr.io import read_file#, writeFile
+from streamr.io import read_file
 from streamr.simple import ListP, ListC
 from test_core import _TestPipe
 import os
