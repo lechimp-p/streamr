@@ -389,6 +389,8 @@ class _TestPipe(_TestStreamProcessor):
         env = pipe.get_initial_env(*env_params)
         tin = pipe.type_in()
         tout = pipe.type_out()
+        send_was_called = [False]
+
         def upstream():
             if len(test_values) == 0:
                 raise Exhausted()
@@ -401,6 +403,7 @@ class _TestPipe(_TestStreamProcessor):
             return v
 
         def downstream(v):
+            send_was_called[0] = True
             if result != self._NoValue:
                 assert result.pop(0) == v
             # TODO: This test will fail if tout is a nested type var.
@@ -412,12 +415,15 @@ class _TestPipe(_TestStreamProcessor):
         try:
             for i in range(0, min(max_amount, len(test_values))):
                 res = pipe.step(env, upstream, downstream)
+                assert isinstance(res, (Stop, MayResume, Resume))
                 if isinstance(res, Stop):
                     break 
         except Exhausted:
             assert isinstance(res, MayResume)
         finally:
             pipe.shutdown_env(env)
+
+        assert send_was_called[0]
 
 
 ###############################################################################
