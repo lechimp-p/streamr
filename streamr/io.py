@@ -2,6 +2,7 @@
 
 from .simple import pipe 
 from .core import Stop, Resume, MayResume, Exhausted
+import json
 
 ###############################################################################
 #
@@ -33,4 +34,9 @@ def to_json(await, send):
 
     Will drop strings that can't be parsed as json.
     """
-    pass
+    try:
+        send(json.loads(await()))
+        return MayResume()
+    except ValueError():
+        pass
+    return MayResume()
