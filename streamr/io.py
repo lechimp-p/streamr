@@ -17,8 +17,11 @@ def read_file(await, send):
 
     Will drop filenames that can't be opened.
     """
-    with open(await()) as f:
-        send(f.read())
+    try:
+        with open(await()) as f:
+            send(f.read())
+    except (FileNotFoundError, IsADirectoryError):
+        pass
     return MayResume()
 
 
