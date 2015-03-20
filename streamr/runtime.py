@@ -89,6 +89,8 @@ class SimpleRuntimeEngine(object):
 
         r = self._seq_rectify_result(processors, rt_env)
         if isinstance(res, MayResume):
+            if r == ():
+                return MayResume()
             return MayResume(r)
         return Stop(r)
         
