@@ -265,6 +265,13 @@ class TestListConsumer(_TestConsumer):
         sp = ConstP(10) >> c
         assert sp.run() == [10, 10]
 
+    def test_empty(self):
+        pr = ListP(["foo"])
+        c = ListC()
+        sp = pr >> filter_p(str, lambda x: False) >> c
+        res = sp.run()
+        assert res == []
+
 
 class TestTransformationDecorator(_TestPipe):
     @pytest.fixture
