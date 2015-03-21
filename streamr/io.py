@@ -37,6 +37,6 @@ def to_json(await, send):
     try:
         send(json.loads(await()))
         return MayResume()
-    except ValueError():
+    except ValueError:
         pass
     return MayResume()
