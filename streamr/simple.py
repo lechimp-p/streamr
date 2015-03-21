@@ -314,7 +314,7 @@ def filter_p(type_io, _lambda = None):
 
 
 _any = Type.get()
-@transformation(_any, _any)
+@transformation(_any, (_any, _any))
 def tee(v):
     return v,v
 

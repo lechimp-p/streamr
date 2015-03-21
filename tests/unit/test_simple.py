@@ -415,3 +415,6 @@ class TestTee(_TestPipe):
     def result(self):
         return [(i,i) for i in range(0, 10)]    
 
+    def test_typeOut(self, pipe):
+        assert pipe.type_out() == Type.get(pipe.type_in(), pipe.type_in())
+
