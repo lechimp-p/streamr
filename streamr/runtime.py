@@ -92,9 +92,9 @@ class SimpleRuntimeEngine(object):
         rt.rt_env["results"][-1] = res.result
 
         if isinstance(res, Stop):
-            if (len(list(filter( lambda x: not isinstance(x, self._NoRes)
-                              , rt.rt_env["results"])))
-                != rt.rt_env["amount_res"]):
+            is_Res = lambda x: not isinstance(x, self._NoRes)
+            results = list(filter(is_Res, rt.rt_env["results"]))
+            if (len(results) != rt.rt_env["amount_res"]):
                 raise RuntimeError("Last stream processor signals stop,"
                                    " but there are not enough results.")
 
