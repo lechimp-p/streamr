@@ -1,6 +1,6 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-from .core import StreamProcessor, SequentialStreamProcessor, ParallelStreamProcessor
+from .core import SequentialStreamProcessor, ParallelStreamProcessor
 
 
 class SimpleCompositionEngine(object):
