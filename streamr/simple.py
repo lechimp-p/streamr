@@ -1,6 +1,6 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-from .core import StreamProcessor, Stop, Resume, MayResume, Exhausted 
+from .core import StreamProcessor, Stop, MayResume, Exhausted 
 from .types import Type
 
 ###############################################################################
