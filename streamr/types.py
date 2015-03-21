@@ -344,8 +344,8 @@ class TypeEngine(object):
             { PyType :      lambda l, r:
                 l.py_type != r.py_type and issubclass(r.py_type, l.py_type)
             , ProductType : lambda l, r: 
-                len(l.types) == len(r.types) 
-                and ALL((v[0] < v[1] for v in zip(l.types, r.types)))
+                len(l.types) == len(r.types) and
+                ALL((v[0] < v[1] for v in zip(l.types, r.types)))
             , ListType :    lambda l, r:
                 l.item_type < r.item_type
             , ArrowType :   lambda l, r:
@@ -356,8 +356,8 @@ class TypeEngine(object):
         l,r = self._toType(l,r)
         return self._withComparisons(l, r, 
             { ProductType: lambda l, r:
-                len(l.types) == len(r.types)
-                and ALL((v[0] <= v[1] for v in zip(l.types, r.types)))
+                len(l.types) == len(r.types) and
+                ALL((v[0] <= v[1] for v in zip(l.types, r.types)))
             }, lambda l, r: l == r or l < r)
     def eq(self, l, r):
         l,r = self._toType(l,r)
