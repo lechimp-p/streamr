@@ -45,7 +45,7 @@ assert ("c.d", "e") in res
 # turn it to json, search for the placeholders and join this with
 # our custom dict_values transformation.
 
-get_values = tee >> (to_json * search("{{([^}]+)}}")) >> dict_values
+get_values = tee >> to_json * search("{{([^}]+)}}") >> dict_values
 
 assert get_values.type_in() == Type.get(str)
 assert get_values.type_out() == Type.get([(str, str)])
