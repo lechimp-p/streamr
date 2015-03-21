@@ -1,11 +1,16 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-# TODO: Clean this up, when user interface is defined.
-from .simple import ( Producer, Consumer, Pipe, ConstP, ListP, ListC, pipe, transformation
-                    , filter_p, tee, nop)
-from .core import Resume, MayResume, Stop
-import streamr.composition
-import streamr.runtime 
+# Common exports
+from .simple import ( Producer, Consumer, Pipe, ConstP, ListP, ListC, pipe
+                    , transformation, filter_p, tee, nop)
+from .core import Resume, MayResume, Stop, StreamProcessor
 
-__all__ = [ "Producer", "Consumer", "Pipe", "ConstP", "ListP", "ListC", "pipe", "filter_p"
-          , "tee", "nop" ]
+# Engine initialisations
+from streamr.composition import SimpleCompositionEngine
+StreamProcessor.composition_engine = SimpleCompositionEngine()
+
+from streamr.runtime import SimpleRuntimeEngine 
+StreamProcessor.runtime_engine = SimpleRuntimeEngine()
+
+__all__ = [ "Producer", "Consumer", "Pipe", "ConstP", "ListP", "ListC", "pipe"
+          , "filter_p", "transformation", "tee", "nop" ]

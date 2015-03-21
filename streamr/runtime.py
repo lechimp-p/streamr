@@ -278,7 +278,3 @@ class SimpleRuntimeEngine(object):
             return res[0]
 
         return tuple(res)
-
-
-StreamProcessor.runtime_engine = SimpleRuntimeEngine()
-

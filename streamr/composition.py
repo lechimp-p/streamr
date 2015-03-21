@@ -31,8 +31,3 @@ class SimpleCompositionEngine(object):
             return True
         except TypeError:
             return False
-     
-
-StreamProcessor.composition_engine = SimpleCompositionEngine()
-
-
