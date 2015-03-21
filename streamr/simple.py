@@ -318,6 +318,11 @@ _any = Type.get()
 def tee(v):
     return v,v
 
+_any = Type.get()
+@transformation(_any, _any)
+def nop(v):
+    return v
+
 # Maybe to be reused for generator style producers
 #                
 #class EnvAndGen(object):

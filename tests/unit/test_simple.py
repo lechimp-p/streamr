@@ -3,7 +3,7 @@
 import pytest
 
 from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, ConstP,
-                    ListP, ListC, transformation, pipe, filter_p, tee)
+                    ListP, ListC, transformation, pipe, filter_p, tee, nop)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
 from streamr.types import Type, unit
 
@@ -418,3 +418,15 @@ class TestTee(_TestPipe):
     def test_typeOut(self, pipe):
         assert pipe.type_out() == Type.get(pipe.type_in(), pipe.type_in())
 
+class TestNop(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        return nop 
+
+    @pytest.fixture
+    def test_values(self):
+        return [i for i in range(0, 10)]
+
+    @pytest.fixture
+    def result(self):
+        return [i for i in range(0, 10)]    

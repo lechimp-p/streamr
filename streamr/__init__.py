@@ -2,10 +2,10 @@
 
 # TODO: Clean this up, when user interface is defined.
 from .simple import ( Producer, Consumer, Pipe, ConstP, ListP, ListC, pipe, transformation
-                    , filter_p, tee)
+                    , filter_p, tee, nop)
 from .core import Resume, MayResume, Stop
 import streamr.composition
 import streamr.runtime 
 
 __all__ = [ "Producer", "Consumer", "Pipe", "ConstP", "ListP", "ListC", "pipe", "filter_p"
-          , "tee" ]
+          , "tee", "nop" ]
