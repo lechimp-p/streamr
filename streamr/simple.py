@@ -274,7 +274,7 @@ class FilterPipe(Pipe):
         super(FilterPipe, self).__init__(type_init, type_io, type_io)
 
     def transform(self, env, await, send):
-        for i in range(0, self.max_tries_per_step):
+        for _ in range(0, self.max_tries_per_step):
             val = await()
             if self.predicate(env, val):
                 send(val)
