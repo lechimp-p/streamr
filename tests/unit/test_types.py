@@ -325,6 +325,15 @@ class TestArrowType(object):
         t3 = t1 % t2
         assert t3 == ArrowType.get(other, base)
 
+    def test_composition5(self, base, other):
+        v1 = Type.get()
+        v2 = Type.get()
+        t1 = ArrowType.get(v1, (v1, v1))
+        t2 = ArrowType.get((v2, str), (v2))
+
+        t3 = t1 % t2
+        assert t3 == ArrowType.get(str, str)
+
 class TestTypeVar(object):
     def test_uniqueness(self, base):
         t1 = Type.get()
