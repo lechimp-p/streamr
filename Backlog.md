@@ -8,6 +8,9 @@
 * implement io.write_file as brother for read_file
 * implement producers and consumers for files 
 * implement a combinator for map (a -> b) -> ([a] -> [b])
+* implement a combinator that turns [a -> b](() -> ()) to [() -> ()](a -> b) 
+* implement a combinator that applies a -> b to the n-th entry in a nested
+  product.
 
 # I could ...
 
