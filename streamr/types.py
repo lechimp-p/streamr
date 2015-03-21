@@ -340,8 +340,8 @@ class TypeEngine(object):
     """
     def lt(self, l, r):
         l,r = self._toType(l,r)
-        return self._withComparisons(l, r, {
-              PyType :      lambda l, r:
+        return self._withComparisons(l, r,
+            { PyType :      lambda l, r:
                 l.py_type != r.py_type and issubclass(r.py_type, l.py_type)
             , ProductType : lambda l, r: 
                 len(l.types) == len(r.types) 
@@ -351,14 +351,14 @@ class TypeEngine(object):
             , ArrowType :   lambda l, r:
                 l.l_type > r.l_type or l.r_type < r.r_type
                 
-        })
+            })
     def le(self, l, r):
         l,r = self._toType(l,r)
-        return self._withComparisons(l, r, {
-              ProductType: lambda l, r:
+        return self._withComparisons(l, r, 
+            { ProductType: lambda l, r:
                 len(l.types) == len(r.types)
                 and ALL((v[0] <= v[1] for v in zip(l.types, r.types)))
-        }, lambda l, r: l == r or l < r)
+            }, lambda l, r: l == r or l < r)
     def eq(self, l, r):
         l,r = self._toType(l,r)
         return id(l) == id(r)
