@@ -15,9 +15,11 @@ class SimpleRuntimeEngine(object):
         assert process.type_init().contains(params)
 
         def await(val):
-            raise RuntimeError("Process should not send a value downstream")
+            raise RuntimeError("Process should not send a value downstream, "
+                               "but send %s" % val)
         def send(val):
-            raise RuntimeError("Process should not send a value downstream")
+            raise RuntimeError("Process should not send a value downstream, "
+                               "but send %s" % val)
         
         res = None
         env = process.get_initial_env(*params)
@@ -35,7 +37,7 @@ class SimpleRuntimeEngine(object):
         finally:
             process.shutdown_env(env)
 
-    class _NoRes:
+    class _NoRes(object):
         pass
 
     ###########################################################################
