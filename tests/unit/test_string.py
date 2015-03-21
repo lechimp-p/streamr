@@ -20,6 +20,12 @@ class TestSearch(_TestPipe):
     @pytest.fixture
     def result(self, test_values):
         return [["12", "2", "3"]]
+
+    def test_group(self):
+        lp = ListP(["__1__"])
+        lc = ListC()
+        sp = lp >> search("__(\d)__") >> lc
+        assert sp.run() == [["1"]]
      
 class TestReplace(_TestPipe):
     @pytest.fixture
