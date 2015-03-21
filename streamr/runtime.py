@@ -98,7 +98,7 @@ class SimpleRuntimeEngine(object):
                 raise RuntimeError("Last stream processor signals stop,"
                                    " but there are not enough results.")
 
-        r = self._seq_rectify_result(rt.processors, rt.rt_env)
+        r = self._seq_rectify_result(rt.rt_env)
         if isinstance(res, MayResume):
             if r == ():
                 return MayResume()
@@ -149,7 +149,7 @@ class SimpleRuntimeEngine(object):
 
         return _await
 
-    def _seq_rectify_result(self, processors, rt_env):
+    def _seq_rectify_result(self, rt_env):
         res = rt_env["results"]
         if rt_env["amount_res"] == 0:
             return ()
@@ -212,7 +212,7 @@ class SimpleRuntimeEngine(object):
         if must_resume:
             return Resume()
 
-        res = self._par_rectify_res(rt.processors, rt.rt_env)
+        res = self._par_rectify_res(rt.rt_env)
 
         if stop:
             return Stop(res)
@@ -285,7 +285,7 @@ class SimpleRuntimeEngine(object):
         for r, cache in zip(res, rt.rt_env["caches_out"]):
             cache.insert(0, r)
 
-    def _par_rectify_res(self, processors, rt_env):
+    def _par_rectify_res(self, rt_env):
         res = rt_env["results"]
         assert len(res) == rt_env["amount_res"]
 
