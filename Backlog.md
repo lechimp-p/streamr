@@ -7,6 +7,7 @@
   like open_file >> read_handle
 * implement io.write_file as brother for read_file
 * implement producers and consumers for files 
+* implement a combinator for map (a -> b) -> ([a] -> [b])
 
 # I could ...
 
