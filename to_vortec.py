@@ -82,7 +82,7 @@ assert ("{{c.d}}", "e") in res
 
 
 # And finally the json string replacer. We do not read from a file with it.
-# Try it yourself. We need a nop to get the types right.
+# We need a nop to get the types right.
 
 json_string_replacer = tee >> nop * get_replacements >> replace >> to_json
 
@@ -94,3 +94,8 @@ assert res["a"] == "b"
 assert res["b"] == "b"
 assert res["c"] == { "d" : "e" }
 assert res["e"] == "e"
+
+
+# Finally, we map a filename to a fully parsed and replace json
+
+json_string_replacer_f = read_file >> json_string_replacer
