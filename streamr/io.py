@@ -3,6 +3,7 @@
 from .simple import pipe 
 from .core import Stop, Resume, MayResume, Exhausted
 import json
+import sys
 
 ###############################################################################
 #
@@ -17,9 +18,13 @@ def read_file(await, send):
     downstream.
 
     Will drop filenames that can't be opened.
+
+    Uses utf-8 in py3 only.
     """
     try:
-        with open(await(), "r", encoding = "utf-8") as f:
+        is_py2 = sys.version_info[0] < 3
+        v = await()
+        with open(v, "r") if is_py2 else open(v, "r", encoding = "utf-8") as f:
             send(f.read())
     except IOError:
         pass
