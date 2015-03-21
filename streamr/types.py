@@ -496,9 +496,12 @@ class TypeEngine(object):
     def _substitute(subs, v, t):
         if v in subs:
             o = subs[v]
-            if o == t:
-                return v
-            if t >= o:
+            if isinstance(o, TypeVar):
+                subs[o] = t 
+                subs[v] = t
+            elif o == t:
+                pass
+            elif t >= o:
                 subs[v] = t
             elif not o >= t:
                 TypeEngine._cant_unify(o,t) 
