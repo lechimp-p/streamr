@@ -1,7 +1,7 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
 from .simple import pipe 
-from .core import Stop, Resume, MayResume, Exhausted
+from .core import MayResume
 import json
 import sys
 
