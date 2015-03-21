@@ -3,7 +3,7 @@
 import pytest
 
 from streamr.core import StreamProcessor, Stop, Resume, MayResume, Exhausted
-from streamr.types import Type, unit, ArrowType, TypeVar
+from streamr.types import Type, unit, ArrowType
 
 
 ###############################################################################
@@ -395,8 +395,7 @@ class _TestPipe(_TestStreamProcessor):
             if len(test_values) == 0:
                 raise Exhausted()
             v = test_values.pop(0) 
-            # TODO: This test will fail if tin is a nested type var.
-            if not isinstance(tin, TypeVar):
+            if not tin.is_variable():
                 assert tin.contains(v)
             # TODO: There is no test weather the pipe is correct when
             # tin is a TypeVar.
@@ -406,8 +405,7 @@ class _TestPipe(_TestStreamProcessor):
             send_was_called[0] = True
             if result != self._NoValue:
                 assert result.pop(0) == v
-            # TODO: This test will fail if tout is a nested type var.
-            if not isinstance(tout, TypeVar):
+            if not tout.is_variable():
                 assert tout.contains(v)
             # TODO: There is no test weather the pipe is correct when
             # tout is a TypeVar.
