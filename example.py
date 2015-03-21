@@ -22,14 +22,14 @@ def AppendWord(word):
 def chunks(type_io, length):
     @pipe(type_io, type_io)
     def chunks(await, send):
-        send([await() for i in range(0, length)])
+        send([await() for _ in range(0, length)])
     return chunks
 
 def echo(type_io, amount):
     @pipe(type_io, type_io)
     def echo(await, send):
         val = await()
-        for i in range(0, amount):
+        for _ in range(0, amount):
             send(val)
     return echo
 
