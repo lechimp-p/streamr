@@ -12,5 +12,6 @@ StreamProcessor.composition_engine = SimpleCompositionEngine()
 from streamr.runtime import SimpleRuntimeEngine 
 StreamProcessor.runtime_engine = SimpleRuntimeEngine()
 
-__all__ = [ "Producer", "Consumer", "Pipe", "ConstP", "ListP", "ListC", "pipe"
-          , "filter_p", "transformation", "tee", "nop" ]
+__all__ = [ "Resume", "MayResume", "Stop", "Producer", "Consumer", "Pipe"
+          , "ConstP", "ListP", "ListC", "pipe", "filter_p", "transformation"
+          , "tee", "nop" ]
