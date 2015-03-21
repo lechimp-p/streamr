@@ -40,6 +40,17 @@ class SimpleRuntimeEngine(object):
     class _NoRes(object):
         pass
 
+    class RT(object):
+        """
+        Holds everything that is needed to run a process.
+        """
+        def __init__(self, processors, envs, rt_env, await, send):
+            self.processors = processors
+            self.envs = envs
+            self.rt_env = rt_env
+            self.await = await
+            self.send = send
+
     ###########################################################################
     #
     # Methods for sequential processing.
@@ -61,35 +72,33 @@ class SimpleRuntimeEngine(object):
                                             processors)))
                }
 
-    def step_seq(self, processors, envs, rt_env, await, send):
+    def step_seq(self, rt):
         """
         Perform a step of the processors sequentially.
         """
-        amount_procs = len(processors)
-        assert rt_env["amount"] == amount_procs
+        assert isinstance(rt, self.RT)
 
-        res = processors[-1].step( envs[-1]
-                                 , self._seq_upstream( processors, envs, rt_env 
-                                                     , await, send
-                                                     , amount_procs - 1)
-                                 , self._seq_downstream( processors, envs, rt_env
-                                                       , await, send
-                                                       , amount_procs - 1)
+        amount_procs = len(rt.processors)
+        assert rt.rt_env["amount"] == amount_procs
+
+        res = rt.processors[-1].step( rt.envs[-1]
+                                    , self._seq_upstream(rt, amount_procs - 1)
+                                    , self._seq_downstream(rt, amount_procs - 1)
                                  )       
 
         if isinstance(res, Resume):
             return Resume()
 
-        rt_env["results"][-1] = res.result
+        rt.rt_env["results"][-1] = res.result
 
         if isinstance(res, Stop):
             if (len(list(filter( lambda x: not isinstance(x, self._NoRes)
-                              , rt_env["results"])))
-                != rt_env["amount_res"]):
+                              , rt.rt_env["results"])))
+                != rt.rt_env["amount_res"]):
                 raise RuntimeError("Last stream processor signals stop,"
                                    " but there are not enough results.")
 
-        r = self._seq_rectify_result(processors, rt_env)
+        r = self._seq_rectify_result(rt.processors, rt.rt_env)
         if isinstance(res, MayResume):
             if r == ():
                 return MayResume()
@@ -97,46 +106,46 @@ class SimpleRuntimeEngine(object):
         return Stop(r)
         
 
-    def _seq_downstream(self, processors, envs, rt_env, await, send, i):
+    def _seq_downstream(self, rt, i):
         """
         Downstream from i'th processor.
         """
-        assert i < rt_env["amount"]
+        assert isinstance(rt, self.RT)
+        assert i < rt.rt_env["amount"]
         assert i >= 0
 
-        if i == rt_env["amount"] - 1:
-            return send
+        if i == rt.rt_env["amount"] - 1:
+            return rt.send
 
         def _send(val):
-            rt_env["caches"][i].append(val)
+            rt.rt_env["caches"][i].append(val)
 
         return _send 
 
-    def _seq_upstream(self, processors, envs, rt_env, await, send, i):
+    def _seq_upstream(self, rt, i):
         """
         Upstream to i'th processor.
         """
-        assert i < rt_env["amount"]
+        assert isinstance(rt, self.RT)
+        assert i < rt.rt_env["amount"]
         assert i >= 0
 
         if i == 0:
-            return await
+            return rt.await
 
         def _await():
-            while len(rt_env["caches"][i-1]) == 0:
-                if rt_env["exhausted"][i-1]:
+            while len(rt.rt_env["caches"][i-1]) == 0:
+                if rt.rt_env["exhausted"][i-1]:
                     raise Exhausted()
-                p = processors[i-1]
-                us = self._seq_upstream( processors, envs, rt_env
-                                       , await, send, i-1)
-                ds = self._seq_downstream( processors, envs, rt_env
-                                         , await, send,i-1)
-                res = p.step( envs[i-1], us, ds)
+                p = rt.processors[i-1]
+                us = self._seq_upstream(rt, i-1)
+                ds = self._seq_downstream(rt, i-1)
+                res = p.step(rt.envs[i-1], us, ds)
                 if not isinstance(res, Resume) and p.type_result() != unit:
-                    rt_env["results"][i-1] = res.result
+                    rt.rt_env["results"][i-1] = res.result
                 if isinstance(res, Stop):
-                    rt_env["exhausted"][i-1] = True
-            return rt_env["caches"][i-1].pop(0)
+                    rt.rt_env["exhausted"][i-1] = True
+            return rt.rt_env["caches"][i-1].pop(0)
 
         return _await
 
@@ -176,34 +185,34 @@ class SimpleRuntimeEngine(object):
                                             processors)))
                }
 
-    def step_par(self, processors, envs, rt_env, await, send):
-        amount_procs = len(processors)
-        assert rt_env["amount"] == amount_procs
+    def step_par(self, rt):
+        assert isinstance(rt, self.RT)
 
-        rt_env["results"] = []
+        amount_procs = len(rt.processors)
+        assert rt.rt_env["amount"] == amount_procs
+
+        rt.rt_env["results"] = []
         stop = False
         must_resume = False
-        for p,i in zip(processors, range(0, amount_procs)):
-            r = p.step( envs[i]
-                      , self._par_upstream( processors, envs, rt_env
-                                          , await, send, i)
-                      , self._par_downstream( processors, envs, rt_env
-                                            , await, send, i)
+        for p,i in zip(rt.processors, range(0, amount_procs)):
+            r = p.step( rt.envs[i]
+                      , self._par_upstream(rt, i)
+                      , self._par_downstream(rt, i)
                       )
             stop = stop or isinstance(r, Stop)
             must_resume = must_resume or isinstance(r, Resume)
             if not isinstance(r, Resume) and p.type_result() != unit:
-                rt_env["results"].append(r.result)
+                rt.rt_env["results"].append(r.result)
 
         if stop and must_resume:
             raise RuntimeError("One consumer wants to stop, while another needs to resume.")
 
-        self._par_flush_caches_out(processors, rt_env, send) 
+        self._par_flush_caches_out(rt) 
 
         if must_resume:
             return Resume()
 
-        res = self._par_rectify_res(processors, rt_env)
+        res = self._par_rectify_res(rt.processors, rt.rt_env)
 
         if stop:
             return Stop(res)
@@ -211,51 +220,55 @@ class SimpleRuntimeEngine(object):
         return MayResume(res)
 
 
-    def _par_downstream(self, processors, envs, rt_env, await, send, i):
+    def _par_downstream(self, rt, i):
         """
         Downstream from i't processor.
         """
-        assert i < rt_env["amount"]
+        assert isinstance(rt, self.RT)
+        assert i < rt.rt_env["amount"]
         assert i >= 0
 
         def _send(val):
-            rt_env["caches_out"][i].append(val)
+            rt.rt_env["caches_out"][i].append(val)
         return _send
 
-    def _par_upstream(self, processors, envs, rt_env, await, send, i):
+    def _par_upstream(self, rt, i):
         """
         Upstream to i't processor.
         """
-        assert i < rt_env["amount"]
+        assert isinstance(rt, self.RT)
+        assert i < rt.rt_env["amount"]
         assert i >= 0
 
         def _await():
-            while len(rt_env["caches_in"][i]) == 0:
-                self._par_fill_caches_in(processors, envs, rt_env, await)
-            return rt_env["caches_in"][i].pop(0)
+            while len(rt.rt_env["caches_in"][i]) == 0:
+                self._par_fill_caches_in(rt)
+            return rt.rt_env["caches_in"][i].pop(0)
 
         return _await
 
-    def _par_fill_caches_in(self, processors, envs, rt_env, await):
-        assert rt_env["amount_in"] > 0
+    def _par_fill_caches_in(self, rt):
+        assert isinstance(rt, self.RT)
+        assert rt.rt_env["amount_in"] > 0
 
-        if rt_env["amount_in"] == 1:
-            res = [await()]
+        if rt.rt_env["amount_in"] == 1:
+            res = [rt.await()]
         else:
-            res = list(await())
+            res = list(rt.await())
 
-        for p,i in zip(processors, range(0, rt_env["amount"])):
+        for p,i in zip(rt.processors, range(0, rt.rt_env["amount"])):
             if p.type_in() != unit:
-                rt_env["caches_in"][i].append(res.pop(0))
+                rt.rt_env["caches_in"][i].append(res.pop(0))
 
-    def _par_flush_caches_out(self, processors, rt_env, send):
-        if rt_env["amount_out"] == 0:
+    def _par_flush_caches_out(self, rt):
+        assert isinstance(rt, self.RT)
+        if rt.rt_env["amount_out"] == 0:
             return
 
         resume = True
         while resume:
             res = [] 
-            for p,cache in zip(processors, rt_env["caches_out"]):  
+            for p,cache in zip(rt.processors, rt.rt_env["caches_out"]):  
                 if p.type_out() == unit: 
                     continue
                 if len(cache) == 0:
@@ -263,13 +276,13 @@ class SimpleRuntimeEngine(object):
                     break
                 res.append(cache.pop(0))
             if resume:
-                if rt_env["amount_out"] == 1:
-                    send(res[0])
+                if rt.rt_env["amount_out"] == 1:
+                    rt.send(res[0])
                 else:
-                    send(tuple(res)) 
+                    rt.send(tuple(res)) 
 
         # Reinsert the values we could not send downstream to cache
-        for r, cache in zip(res, rt_env["caches_out"]):
+        for r, cache in zip(res, rt.rt_env["caches_out"]):
             cache.insert(0, r)
 
     def _par_rectify_res(self, processors, rt_env):

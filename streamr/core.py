@@ -265,12 +265,9 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
         return env
 
     def step(self, env, await, send):
-        return self.runtime_engine.step_seq( self.processors
-                                           , env["envs"]
-                                           , env["rt"]
-                                           , await 
-                                           , send 
-                                           )
+        par = self.runtime_engine.RT( self.processors, env["envs"], env["rt"]
+                                    , await, send)
+        return self.runtime_engine.step_seq(par)
 
 
 class ParallelStreamProcessor(ComposedStreamProcessor):
@@ -289,9 +286,6 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
         return env
 
     def step(self, env, await, send):
-        return self.runtime_engine.step_par( self.processors
-                                           , env["envs"]
-                                           , env["rt"]
-                                           , await
-                                           , send
-                                           )
+        par = self.runtime_engine.RT( self.processors, env["envs"], env["rt"]
+                                    , await, send)
+        return self.runtime_engine.step_par(par)
