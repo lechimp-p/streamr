@@ -13,7 +13,7 @@ co2 = to_list(max_amount = 10)
 sp = pr2 >> co2
 print (sp.run())
 
-def AppendWord(word):
+def append_word(word):
     @transformation(str, str)
     def append(inp):
         return "%s %s" % (inp, word)
@@ -33,7 +33,7 @@ def echo(type_io, amount):
             send(val)
     return echo
 
-sp = pr2 >> AppendWord("you,") >> AppendWord("World!") >> co2
+sp = pr2 >> append_word("you,") >> append_word("World!") >> co2
 print (sp.run())
 
 sp = pr1 >> chunks(int, 2) >> co1
