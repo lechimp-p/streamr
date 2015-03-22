@@ -363,6 +363,13 @@ def maps(a_pipe):
     if a_pipe.type_init() != () or a_pipe.type_result() != ():
         raise TypeError("Only can deal with pipes without init and result.")
 
+    @transformation([a_pipe.type_in()], [a_pipe.type_out()])
+    def mapper(a):
+        sp = from_list(a) >> a_pipe >> to_list()
+        return sp.run()
+
+    return mapper
+
 # Maybe to be reused for generator style producers
 #                
 #class EnvAndGen(object):
