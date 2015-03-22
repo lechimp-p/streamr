@@ -2,7 +2,7 @@
 
 # Common exports
 from .simple import ( Producer, Consumer, Pipe, const, from_list, to_list, pipe
-                    , transformation, filter_p, tee, nop)
+                    , transformation, pass_if, tee, nop)
 from .core import Resume, MayResume, Stop, StreamProcessor
 
 # Engine initialisations
@@ -13,5 +13,5 @@ from streamr.runtime import SimpleRuntimeEngine
 StreamProcessor.runtime_engine = SimpleRuntimeEngine()
 
 __all__ = [ "Resume", "MayResume", "Stop", "Producer", "Consumer", "Pipe"
-          , "ConstP", "ListP", "ListC", "pipe", "filter_p", "transformation"
+          , "ConstP", "ListP", "ListC", "pipe", "pass_if", "transformation"
           , "tee", "nop" ]

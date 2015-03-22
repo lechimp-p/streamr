@@ -325,7 +325,7 @@ class LambdaFilterPipe(FilterPipe):
         return self._lambda(val)
 
 
-def filter_p(type_io, _lambda = None):
+def pass_if(type_io, _lambda = None):
     """
     Decorate a predicate and get a pipe that only lets values
     through when the predicate matches.

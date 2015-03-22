@@ -3,7 +3,7 @@
 import pytest
 
 from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, const,
-                    from_list, to_list, transformation, pipe, filter_p, tee, nop)
+                    from_list, to_list, transformation, pipe, pass_if, tee, nop)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
 from streamr.types import Type, unit
 
@@ -272,7 +272,7 @@ class TestListConsumer(_TestConsumer):
     def test_empty(self):
         pr = from_list(["foo"])
         c = to_list()
-        sp = pr >> filter_p(str, lambda x: False) >> c
+        sp = pr >> pass_if(str, lambda x: False) >> c
         res = sp.run()
         assert res == []
 
@@ -389,7 +389,7 @@ class TestLambdaFilterPipe(_TestPipe):
 class TestFilterDecorator(_TestPipe):
     @pytest.fixture
     def pipe(self):
-        @filter_p(int)
+        @pass_if(int)
         def even(a):
             return a % 2 == 0
         return even 

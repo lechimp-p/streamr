@@ -1,6 +1,6 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-from streamr import from_list, to_list, const, pipe, transformation, filter_p
+from streamr import from_list, to_list, const, pipe, transformation, pass_if 
 
 pr1 = from_list([1,2,3,4,5,6])
 co1 = to_list()
@@ -42,5 +42,5 @@ print (sp.run())
 sp = pr1 >> echo(int, 3) >> co1
 print (sp.run())
 
-sp = pr1 >> filter_p(int, lambda x: x % 2 == 0) >> co1
+sp = pr1 >> pass_if(int, lambda x: x % 2 == 0) >> co1
 print (sp.run())
