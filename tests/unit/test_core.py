@@ -317,7 +317,7 @@ class _TestProducer(_TestStreamProcessor):
     def test_typeOutIsNotVariable(self, producer):
         assert not producer.type_out().is_variable()
 
-    def test_typeOfProducedValues(self, producer, env_params, max_amount, result):
+    def test_producedValues(self, producer, env_params, max_amount, result):
         env = producer.get_initial_env(*env_params)
         count = 0
         tout = producer.type_out()
@@ -344,7 +344,7 @@ class _TestConsumer(_TestStreamProcessor):
     def test_isConsumer(self, consumer):
         assert consumer.is_consumer()
 
-    def test_consumesValuesOfType(self, consumer, env_params, max_amount, test_values, result):
+    def test_consumedValues(self, consumer, env_params, max_amount, test_values, result):
         env = consumer.get_initial_env(*env_params)
         t = consumer.type_in()
 
@@ -386,7 +386,7 @@ class _TestPipe(_TestStreamProcessor):
     def test_typeOut(self, pipe):
         assert isinstance(pipe.type_out(), Type)
 
-    def test_transformsValuesAccordingToTypes(self, pipe, env_params, max_amount, test_values, result):
+    def test_transformedValues(self, pipe, env_params, max_amount, test_values, result):
         env = pipe.get_initial_env(*env_params)
         tin = pipe.type_in()
         tout = pipe.type_out()
