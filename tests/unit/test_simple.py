@@ -2,8 +2,8 @@
 
 import pytest
 
-from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, ConstP,
-                    ListP, ListC, transformation, pipe, filter_p, tee, nop)
+from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, const,
+                    from_list, to_list, transformation, pipe, filter_p, tee, nop)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
 from streamr.types import Type, unit
 
@@ -113,8 +113,8 @@ class TestMockPipe(_TestPipe):
 
 class TestConstProducer(_TestProducer):
     @pytest.fixture(params =
-        [ (ConstP(value = 10), 10, ())
-        , (ConstP(value_type = int), 10, (10,))
+        [ (const(value = 10), 10, ())
+        , (const(value_type = int), 10, (10,))
         ])
     def producers(self, request, max_amount):
         par = list(request.param)
@@ -135,19 +135,19 @@ class TestConstProducer(_TestProducer):
 
     def test_eitherValueOrValueType(self):
         with pytest.raises(TypeError) as excinfo:
-            ConstP()
+            const()
         assert "value_type" in str(excinfo.value)
 
     def test_valueConstructorOrEnv(self):
         num = 10
-        c1 = ConstP(num)
+        c1 = const(num)
         assert c1.type_out() == Type.get(int)
         assert c1.get_initial_env() == num 
         with pytest.raises(TypeError) as excinfo:
            c1.get_initial_env(num) 
         assert "constructor" in str(excinfo.value)
 
-        c2 = ConstP(value_type = int)
+        c2 = const(value_type = int)
         assert c2.type_out() == Type.get(int)
         with pytest.raises(TypeError) as excinfo:
             c2.get_initial_env()
@@ -157,8 +157,8 @@ class TestConstProducer(_TestProducer):
 
 class TestListProducer(_TestProducer):
     @pytest.fixture(params =
-        [ (ListP(vlist = [10]*10), [10]*10, ())
-        , (ListP(item_type = int), [10]*10, ([10]*10,))
+        [ (from_list(vlist = [10]*10), [10]*10, ())
+        , (from_list(item_type = int), [10]*10, ([10]*10,))
         ])
     def producers(self, request, max_amount):
         return request.param
@@ -181,19 +181,19 @@ class TestListProducer(_TestProducer):
 
     def test_eitherListOrItemType(self):
         with pytest.raises(TypeError) as excinfo:
-            ListP()
+            from_list()
         assert "item_type" in str(excinfo.value)
 
     def test_valueConstructorOrEnv(self):
         l = [10]
-        c1 = ListP(l)
+        c1 = from_list(l)
         assert c1.type_out() == Type.get(int)
         assert c1.get_initial_env()
         with pytest.raises(TypeError) as excinfo:
            c1.get_initial_env(l) 
         assert "constructor" in str(excinfo.value)
 
-        c2 = ListP(item_type = int)
+        c2 = from_list(item_type = int)
         assert c2.type_out() == Type.get(int)
         with pytest.raises(TypeError) as excinfo:
             c2.get_initial_env()
@@ -202,20 +202,20 @@ class TestListProducer(_TestProducer):
 
     def test_noEmptyListConstructor(self):
         with pytest.raises(ValueError) as excinfo:
-            ListP([])
+            from_list([])
         assert "empty" in str(excinfo.value)
 
     def test_noMixedTypesConstructor(self):
         with pytest.raises(TypeError) as excinfo:
-            ListP([1, "foo"])
+            from_list([1, "foo"])
         assert "item" in str(excinfo.value)
 
     def test_constWithListHashUnitInitType(self):
-        p = ListP([10]*10)
+        p = from_list([10]*10)
         assert p.type_init() == unit
 
     def test_complexTypeOut(self):
-        p = ListP([([10], "foo")])
+        p = from_list([([10], "foo")])
         assert p.type_out() == Type.get([int], str)
 
 
@@ -227,9 +227,9 @@ class TestListConsumer(_TestConsumer):
     @pytest.fixture
     def consumer(self, style):
         if style == "result":
-            return ListC()
+            return to_list()
         if style == "append":
-            return ListC([])
+            return to_list([])
 
     @pytest.fixture
     def result(self, style, max_amount):
@@ -244,34 +244,34 @@ class TestListConsumer(_TestConsumer):
 
     def test_append(self):
         l = []
-        c = ListC(l)
+        c = to_list(l)
         inp = [10] * 10
 
-        sp = ListP(inp) >> c
+        sp = from_list(inp) >> c
         sp.run()
 
         assert l == inp 
 
     def test_replaceResultType(self):
-        c = ListC() # List consumes values and results
+        c = to_list() # List consumes values and results
                     # in a list of those values. Yet
                     # is has no definite type...
         assert c.type_in().is_variable()
 
-        p = ConstP(10)
+        p = const(10)
         assert p.type_out() == int
         
         sp = p >> c
         assert sp.type_result() == [int]
 
     def test_maxAmount(self):
-        c = ListC(max_amount = 2)
-        sp = ConstP(10) >> c
+        c = to_list(max_amount = 2)
+        sp = const(10) >> c
         assert sp.run() == [10, 10]
 
     def test_empty(self):
-        pr = ListP(["foo"])
-        c = ListC()
+        pr = from_list(["foo"])
+        c = to_list()
         sp = pr >> filter_p(str, lambda x: False) >> c
         res = sp.run()
         assert res == []

@@ -28,10 +28,10 @@ def dict_values(inp):
 
 # We run some tests on our way...
 
-from streamr import ListP, ListC
+from streamr import from_list, to_list
 
-lp = ListP([ ({ "a" : "b", "c" : { "d" : "e" } }, ["a", "c.d"] ) ])
-lc = ListC()
+lp = from_list([ ({ "a" : "b", "c" : { "d" : "e" } }, ["a", "c.d"] ) ])
+lc = to_list()
 
 sp = lp >> dict_values >> lc
 
@@ -56,7 +56,7 @@ example = { "a" : "b"
           , "e" : "{{c.d}}" 
           }
 
-lp = ListP([json.dumps(example)])
+lp = from_list([json.dumps(example)])
 sp = lp >> get_values >> lc
 
 res = sp.run()[0]

@@ -1,7 +1,7 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
 # Common exports
-from .simple import ( Producer, Consumer, Pipe, ConstP, ListP, ListC, pipe
+from .simple import ( Producer, Consumer, Pipe, const, from_list, to_list, pipe
                     , transformation, filter_p, tee, nop)
 from .core import Resume, MayResume, Stop, StreamProcessor
 

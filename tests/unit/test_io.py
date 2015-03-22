@@ -3,7 +3,7 @@
 import pytest
 
 from streamr.io import read_file, to_json
-from streamr.simple import ListP, ListC
+from streamr.simple import from_list, to_list 
 from test_core import _TestPipe
 import os
 import json
@@ -25,8 +25,8 @@ class TestReadFile(_TestPipe):
         return [open(fn, "r").read() for fn in test_values]
 
     def test_noFile(self, pipe):
-        pr = ListP(["/this/most/probably/wont/point/to/a/file"])
-        co = ListC()
+        pr = from_list(["/this/most/probably/wont/point/to/a/file"])
+        co = to_list()
 
         sp = pr >> pipe >> co
         res = sp.run()

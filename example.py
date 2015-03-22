@@ -1,15 +1,15 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-from streamr import ListP, ListC, ConstP, pipe, transformation, filter_p
+from streamr import from_list, to_list, const, pipe, transformation, filter_p
 
-pr1 = ListP([1,2,3,4,5,6])
-co1 = ListC()
+pr1 = from_list([1,2,3,4,5,6])
+co1 = to_list()
 sp = pr1 >> co1
 
 print(sp.run())
 
-pr2 = ConstP("Hello")
-co2 = ListC(max_amount = 10)
+pr2 = const("Hello")
+co2 = to_list(max_amount = 10)
 sp = pr2 >> co2
 print (sp.run())
 

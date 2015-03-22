@@ -84,7 +84,7 @@ class _NoValue(object):
     pass
 
 
-class ConstP(Producer):
+class ConstProducer(Producer):
     """
     A const producer sends a custom value downstream infinitely.
 
@@ -101,9 +101,9 @@ class ConstP(Producer):
 
         self.value = value
         if value is not _NoValue:
-            super(ConstP, self).__init__((), type(value))
+            super(ConstProducer, self).__init__((), type(value))
         else:
-            super(ConstP, self).__init__(value_type, value_type)
+            super(ConstProducer, self).__init__(value_type, value_type)
 
     def get_initial_env(self, *value):
         if self.value is not _NoValue:
@@ -121,9 +121,18 @@ class ConstP(Producer):
         send(env)
         return MayResume()
 
-class ListP(Producer):
+def const(value = _NoValue, value_type = _NoValue):
     """
-    The ListProducer sends the values from a list downstream.
+    A const producer sends a custom value downstream infinitely.
+
+    The value to be produced could either be given to the constructor
+    or set via get_initial_env.
+    """
+    return ConstProducer(value, value_type)
+
+class ListProducer(Producer):
+    """
+    The ListProducerroducer sends the values from a list downstream.
 
     The list could either be given to the constructor or get_initial_env.
     """
@@ -142,7 +151,7 @@ class ListP(Producer):
         if vlist is _NoValue:
             self.vlist = vlist
             self.item_type = Type.get(item_type)
-            super(ListP, self).__init__([item_type], item_type)
+            super(ListProducer, self).__init__([item_type], item_type)
         else:
             if len(vlist) == 0:
                 raise ValueError("vlist is empty list.")
@@ -150,7 +159,7 @@ class ListP(Producer):
             item_type = Type.infer(vlist[0])
             self._checkList(vlist, item_type)
             self.vlist = list(vlist)
-            super(ListP, self).__init__((), item_type)
+            super(ListProducer, self).__init__((), item_type)
 
     @staticmethod
     def _checkList(vlist, item_type):
@@ -185,8 +194,15 @@ class ListP(Producer):
 
         return MayResume()
 
+def from_list(vlist = _NoValue, item_type = _NoValue):
+    """
+    A producer that sends the values from a list downstream.
 
-class ListC(Consumer):
+    The list could either be given to the constructor or on initialisation.
+    """
+    return ListProducer(vlist, item_type)
+
+class ListConsumer(Consumer):
     """
     Puts consumed values to a list.
 
@@ -198,9 +214,9 @@ class ListC(Consumer):
         self.append_to = append_to
         self.max_amount = max_amount 
         if append_to is None:
-            super(ListC, self).__init__((), [tvar], tvar)
+            super(ListConsumer, self).__init__((), [tvar], tvar)
         else:
-            super(ListC, self).__init__((), (), tvar)
+            super(ListConsumer, self).__init__((), (), tvar)
 
     def get_initial_env(self):
         if self.append_to is None:
@@ -225,6 +241,15 @@ class ListC(Consumer):
         self.append_to.append(await())
         return MayResume()
 
+def to_list(append_to = None, max_amount = None):
+    """
+    Put consumed values to a list.
+
+    Appends to an exisiting list if append_to is used. Creates a fresh
+    list and returns in as result otherwise.
+    """
+    return ListConsumer(append_to, max_amount)
+ 
 
 class LambdaPipe(Pipe):
     """

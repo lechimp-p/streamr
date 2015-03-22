@@ -3,7 +3,7 @@
 import pytest
 
 from streamr.string import search, replace 
-from streamr.simple import ListP, ListC
+from streamr.simple import from_list, to_list 
 from test_core import _TestPipe
 import os
 import json
@@ -22,8 +22,8 @@ class TestSearch(_TestPipe):
         return [["12", "2", "3"]]
 
     def test_group(self):
-        lp = ListP(["__1__"])
-        lc = ListC()
+        lp = from_list(["__1__"])
+        lc = to_list()
         sp = lp >> search("__(\d)__") >> lc
         assert sp.run() == [["1"]]
      
