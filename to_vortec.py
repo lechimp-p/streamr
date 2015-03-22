@@ -1,6 +1,6 @@
 from streamr.io import read_file, to_json
 from streamr.string import search, replace
-from streamr import tee, nop, transformation
+from streamr import tee, nop, transformation, maps
 from streamr.types import Type
 
 import json
@@ -67,11 +67,11 @@ assert ("c.d", "e") in res
 
 # We need to expand the keys a to {{a}} to get a map of replacements.
 
-@transformation([(str, str)], [(str, str)])
-def to_replacements(i):
-    return [("{{%s}}" % a, b) for a, b in i]
+@transformation((str, str), (str, str))
+def to_replacement(i):
+    return "{{%s}}" % i[0], i[1]
 
-get_replacements = get_values >> to_replacements
+get_replacements = get_values >> maps(to_replacement)
 
 sp = lp >> get_replacements >> lc
 
