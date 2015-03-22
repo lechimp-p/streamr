@@ -2,8 +2,9 @@
 
 import pytest
 
-from streamr import (Producer, Consumer, Pipe, MayResume, Stop, Resume, const,
-                    from_list, to_list, transformation, pipe, pass_if, tee, nop)
+from streamr import ( Producer, Consumer, Pipe, MayResume, Stop, Resume, const
+                    , from_list, to_list, transformation, pipe, pass_if, tee
+                    , nop, maps)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
 from streamr.types import Type, unit
 
@@ -429,4 +430,46 @@ class TestNop(_TestPipe):
 
     @pytest.fixture
     def result(self):
-        return [i for i in range(0, 10)]    
+        return [i for i in range(0, 10)]
+
+class TestMaps(_TestPipe):
+    @pytest.fixture
+    def pipe(self):
+        @transformation(int, str)
+        def double(a):
+            return"%s" % (2*a)
+        return maps(double) 
+
+    @pytest.fixture
+    def test_values(self):
+        return [[i]*10 for i in range(0, 10)]
+
+    @pytest.fixture
+    def result(self):
+        return [["%s" % (i*2)]*10 for i in range(0, 10)]
+
+    def test_typesCorrect(self, pipe):
+        assert pipe.type_in() == [int]
+        assert pipe.type_out() == [str]
+        assert pipe.type_init() == ()
+        assert pipe.type_result() == ()
+
+    def test_pipeOnly(self, pipe):
+        with pytest.raises(TypeError) as excinfo:
+            maps(from_list([1]))
+        assert "pipe" in str(excinfo.value)
+        with pytest.raises(TypeError) as excinfo:
+            maps(to_list())
+        assert "pipe" in str(excinfo.value)
+        with pytest.raises(TypeError) as excinfo:
+            maps(from_list([1]) >> to_list())
+        assert "pipe" in str(excinfo.value)
+
+    def test_noInitOnly(self):
+        p_init = Pipe(int, int, int)
+        p_no_init = Pipe((), int, int)  
+        with pytest.raises(TypeError) as excinfo:
+            maps(p_init)
+        assert "init" in str(excinfo.value)
+        assert isinstance(maps(p_no_init), Pipe)
+        
