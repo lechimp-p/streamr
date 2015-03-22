@@ -7,6 +7,7 @@ from streamr import ( Producer, Consumer, Pipe, MayResume, Stop, Resume, const
                     , nop, maps)
 from test_core import _TestProducer, _TestConsumer, _TestPipe 
 from streamr.types import Type, unit
+from streamr.core import StreamProcessor
 
 ###############################################################################
 #
@@ -467,9 +468,13 @@ class TestMaps(_TestPipe):
 
     def test_noInitOnly(self):
         p_init = Pipe(int, int, int)
+        p_result= StreamProcessor((), int, int, int)  
         p_no_init = Pipe((), int, int)  
         with pytest.raises(TypeError) as excinfo:
             maps(p_init)
         assert "init" in str(excinfo.value)
+        with pytest.raises(TypeError) as excinfo:
+            maps(p_result)
+        assert "result" in str(excinfo.value)
         assert isinstance(maps(p_no_init), Pipe)
         

@@ -2,7 +2,7 @@
 
 # Common exports
 from .simple import ( Producer, Consumer, Pipe, const, from_list, to_list, pipe
-                    , transformation, pass_if, tee, nop)
+                    , transformation, pass_if, tee, nop, maps)
 from .core import Resume, MayResume, Stop, StreamProcessor
 
 # Engine initialisations

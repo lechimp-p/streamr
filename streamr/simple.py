@@ -343,10 +343,25 @@ _any = Type.get()
 def tee(v):
     return v,v
 
+
 _any = Type.get()
 @transformation(_any, _any)
 def nop(v):
     return v
+
+def maps(a_pipe):
+    """
+    Maps a pipe over lists from upstream and sends the resulting list
+    downstream.
+
+    TODO: This currently can only deal with pipes that do not need to
+    be initialized and produce no results.
+    """
+    if a_pipe.type_in() == () or a_pipe.type_out() == ():
+        raise TypeError("Expected pipe as argument.")
+
+    if a_pipe.type_init() != () or a_pipe.type_result() != ():
+        raise TypeError("Only can deal with pipes without init and result.")
 
 # Maybe to be reused for generator style producers
 #                
