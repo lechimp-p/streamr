@@ -91,7 +91,7 @@ class ConstProducer(Producer):
     The value to be produced could either be given to the constructor
     or set via get_initial_env.
     """
-    def __init__(self, value = _NoValue, value_type = _NoValue):
+    def __init__(self, value = _NoValue, value_type = _NoValue, amount = _NoValue):
         """
         Either pass a value for the const value to be produced or
         a type of the value if the value should be set via get_initial_env.
@@ -100,6 +100,7 @@ class ConstProducer(Producer):
             raise TypeError("Either pass value or value_type.")
 
         self.value = value
+        self.amount = amount
         if value is not _NoValue:
             super(ConstProducer, self).__init__((), type(value))
         else:
@@ -109,26 +110,30 @@ class ConstProducer(Producer):
         if self.value is not _NoValue:
             if len(value) != 0:
                 raise TypeError("Value already passed in constructor.")
-            return self.value
+            return [self.value, 0]
 
         if len(value) != 1 or not self.type_init().contains(value[0]):
             raise TypeError("Expected value of type '%s' not"
                             " '%s'" % (self.type_init(), value))
 
-        return value[0]
+        return [value[0], 0]
 
     def produce(self, env, send):
-        send(env)
+        if self.amount != _NoValue:
+            if env[1] == self.amount:
+                return Stop()
+            env[1] += 1
+        send(env[0])
         return MayResume()
 
-def const(value = _NoValue, value_type = _NoValue):
+def const(value = _NoValue, value_type = _NoValue, amount = _NoValue):
     """
     A const producer sends a custom value downstream infinitely.
 
     The value to be produced could either be given to the constructor
     or set via get_initial_env.
     """
-    return ConstProducer(value, value_type)
+    return ConstProducer(value, value_type, amount)
 
 class ListProducer(Producer):
     """

@@ -319,15 +319,17 @@ class _TestProducer(_TestStreamProcessor):
 
     def test_typeOfProducedValues(self, producer, env_params, max_amount, result):
         env = producer.get_initial_env(*env_params)
-        t = producer.type_out()
         count = 0
+        tout = producer.type_out()
 
-        def downstream(val):
-            assert t.contains(val)
+        def downstream(v):
+            if result != self._NoValue:
+                assert result.pop(0) == v
+            if not tout.is_variable():
+                assert tout.contains(v)
 
         def upstream():
             assert False
-            return None
 
         for i in range(0, max_amount):
             producer.step(env, upstream, downstream)
@@ -354,7 +356,6 @@ class _TestConsumer(_TestStreamProcessor):
 
         def downstream(val):
             assert False
-
        
         try:
             count = 0

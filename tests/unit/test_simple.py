@@ -117,10 +117,12 @@ class TestConstProducer(_TestProducer):
     @pytest.fixture(params =
         [ (const(value = 10), 10, ())
         , (const(value_type = int), 10, (10,))
+        , (const(value = 10, amount = 1), [10], ()) 
         ])
     def producers(self, request, max_amount):
         par = list(request.param)
-        par[1] = [par[1]] * max_amount
+        if not isinstance(par[1], list):
+            par[1] = [par[1]] * max_amount
         return par
 
     @pytest.fixture
@@ -144,7 +146,7 @@ class TestConstProducer(_TestProducer):
         num = 10
         c1 = const(num)
         assert c1.type_out() == Type.get(int)
-        assert c1.get_initial_env() == num 
+        assert c1.get_initial_env() == [num,0] 
         with pytest.raises(TypeError) as excinfo:
            c1.get_initial_env(num) 
         assert "constructor" in str(excinfo.value)
@@ -154,7 +156,7 @@ class TestConstProducer(_TestProducer):
         with pytest.raises(TypeError) as excinfo:
             c2.get_initial_env()
         assert "value" in str(excinfo.value)
-        assert c2.get_initial_env(num) == num
+        assert c2.get_initial_env(num) == [num,0]
 
 
 class TestListProducer(_TestProducer):
