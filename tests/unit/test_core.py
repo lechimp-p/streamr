@@ -611,3 +611,75 @@ class TestMockPipe(_TestPipe):
     @pytest.fixture
     def env_params(self):
         return()
+
+
+class TestSubprocess(_TestPipe):
+    def test_types(self, pr, pi, co):
+        with pytest.raises(TypeError) as excinfo:
+            subprocess(pr)
+        assert "subprocess" in str(excinfo.value)
+
+        with pytest.raises(TypeError) as excinfo:
+            subprocess(pi)
+        assert "subprocess" in str(excinfo.value)
+
+        with pytest.raises(TypeError) as excinfo:
+            subprocess(co)
+        assert "subprocess" in str(excinfo.value)
+
+        sp = pr >> pi
+
+        assert sp.type_init() == ()
+        assert sp.type_result() == ()
+
+        with pytest.raises(TypeError) as excinfo:
+            subprocess(sp)
+        assert "subprocess" in str(excinfo.value)
+
+        sp = StreamProcessor(int, int, (), ())
+        sub = subprocess(sp)
+        
+        assert sp.type_init() == int 
+        assert sp.type_out() == int 
+        assert sp.type_in() == () 
+        assert sp.type_out() ==() 
+        assert sub.type_init() == ()
+        assert sub.type_out() == ()
+        assert sub.type_in() == int
+        assert sub.type_out() == int
+
+    @pytest.fixture
+    def pipe(self):
+        self.amount_of_calls_to_get_env = 0
+        test = self
+
+        class TestProcess(StreamProcessor):
+            def __init__():
+                super(TestProcess, self).__init__(int, [int], (), ())
+            def get_initial_env(self, val):
+                test.amount_of_calls_to_get_env += 1
+                return val
+            def step(self, env, await, send):
+                return Stop([env] * 10) 
+
+        return subprocess(TestProcess())
+
+    @pytest.fixture
+    def test_values(self):
+        return [1, 2, 3]
+
+    @pytest.fixture
+    def max_amount(self):
+        return 10
+
+    @pytest.fixture
+    def env_params(self):
+        return ()
+
+    @pytest.fixture
+    def result(self, test_values):
+        return [ [i] * 10 for i in test_values ]    
+
+    
+
+
