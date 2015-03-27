@@ -22,7 +22,10 @@ class SimpleRuntimeEngine(object):
                                "but send %s" % val)
         
         res = None
-        env = process.get_initial_env(*params)
+        if isinstance(params, tuple):
+            env = process.get_initial_env(*params)
+        else:
+            env = process.get_initial_env(params)
         try:
             while True:
                 res = process.step(env, await, send)
@@ -293,3 +296,20 @@ class SimpleRuntimeEngine(object):
             return res[0]
 
         return tuple(res)
+
+    ###########################################################################
+    #
+    # Methods for subprocesses.
+    #
+    ###########################################################################
+
+    def get_initial_env_for_sub(self, process):
+        return ()
+
+    def step_sub(self, rt):
+        init = rt.await()
+        if not isinstance(init, tuple):
+            init = (init, )
+        result = rt.processors.run(*init)
+        rt.send(result)
+        return MayResume()        

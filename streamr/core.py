@@ -179,7 +179,10 @@ class StreamProcessor(object):
 
         Process can only be run if its arrow is () -> ().
         """
+        if len(params) == 1:
+            return self.runtime_engine.run(self, params[0])
         return self.runtime_engine.run(self, params)
+        
 
 
 ###############################################################################
@@ -289,3 +292,31 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
         par = self.runtime_engine.RT( self.processors, env["envs"], env["rt"]
                                     , await, send)
         return self.runtime_engine.step_par(par)
+
+def subprocess(process):
+    return Subprocess(process) 
+
+class Subprocess(StreamProcessor):
+    def __init__(self, process):
+        ok = (isinstance(process, StreamProcessor) and
+              process.type_in() == () and
+              process.type_out() == () and
+              process.type_init() != () and
+              process.type_result() != ())
+        if not ok: 
+            raise TypeError("Can't create a subprocess from '%s'" % process)
+
+        self.process = process
+        super(Subprocess, self).__init__( (), ()
+                                        , process.type_init()
+                                        , process.type_result())
+
+    def get_initial_env(self, *params):
+        return self.runtime_engine.get_initial_env_for_sub(self.process)
+
+    def step(self, env, await, send):
+        par = self.runtime_engine.RT( self.process, (), env
+                                    , await, send)
+        return self.runtime_engine.step_sub(par)
+
+

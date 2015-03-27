@@ -2,7 +2,8 @@
 
 import pytest
 
-from streamr.core import StreamProcessor, Stop, Resume, MayResume, Exhausted
+from streamr.core import ( StreamProcessor, Stop, Resume, MayResume, Exhausted
+                         , subprocess )
 from streamr.types import Type, unit, ArrowType
 
 
@@ -641,11 +642,11 @@ class TestSubprocess(_TestPipe):
         sub = subprocess(sp)
         
         assert sp.type_init() == int 
-        assert sp.type_out() == int 
+        assert sp.type_result() == int 
         assert sp.type_in() == () 
         assert sp.type_out() ==() 
         assert sub.type_init() == ()
-        assert sub.type_out() == ()
+        assert sub.type_result() == ()
         assert sub.type_in() == int
         assert sub.type_out() == int
 
@@ -655,7 +656,7 @@ class TestSubprocess(_TestPipe):
         test = self
 
         class TestProcess(StreamProcessor):
-            def __init__():
+            def __init__(self):
                 super(TestProcess, self).__init__(int, [int], (), ())
             def get_initial_env(self, val):
                 test.amount_of_calls_to_get_env += 1
