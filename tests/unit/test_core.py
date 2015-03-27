@@ -113,6 +113,20 @@ class TestCompositionBase(object):
                 sp >> spt
             assert "compose" in str(excinfo.value)
 
+    def test_tupleInitType(self):
+        val = [None]
+        class TupleInitStreamProcessor(StreamProcessor):
+            def __init__(self):
+                super(TupleInitStreamProcessor, self).__init__((int, int), (), (), ())
+            def get_initial_env(self, *params):
+                val[0] = params
+            def step(self, env, await, send):
+                return Stop()
+
+        sp = TupleInitStreamProcessor()
+        sp.run(1,2)
+        assert val[0] == (1,2)
+
 class TestCompositionTyped(object):
     def test_PrCompCoAny(self, pr, pr_str, co_any):
         sp1 = pr >> co_any
