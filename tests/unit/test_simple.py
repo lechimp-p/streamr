@@ -468,19 +468,7 @@ class TestMaps(_TestPipe):
             maps(from_list([1]) >> to_list())
         assert "pipe" in str(excinfo.value)
 
-    def test_noInitOnly(self):
-        p_init = Pipe(int, int, int)
-        p_result= StreamProcessor((), int, int, int)  
-        p_no_init = Pipe((), int, int)  
-        with pytest.raises(TypeError) as excinfo:
-            maps(p_init)
-        assert "init" in str(excinfo.value)
-        with pytest.raises(TypeError) as excinfo:
-            maps(p_result)
-        assert "result" in str(excinfo.value)
-        assert isinstance(maps(p_no_init), Pipe)
-
-    def test_mapsWithInit(self):
+    def test_mapsWithInitAndResult(self):
         class TimesX(StreamProcessor):
             def __init__(self):
                 super(TimesX, self).__init__(int, int, int, int)
