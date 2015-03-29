@@ -243,6 +243,10 @@ class TestListTypes(object):
         assert not t.contains([other_inst])
         assert not t.contains([base_inst, other_inst])
 
+    def test_containsBug(self, base):
+        t = Type.get([base])
+        assert not t.contains(1)
+
 
 class TestArrowType(object):
     def test_comparison1(self, base):
