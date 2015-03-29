@@ -1,6 +1,6 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-from .core import StreamProcessor, Stop, MayResume, Exhausted 
+from .core import StreamProcessor, Stop, MayResume, Exhausted, subprocess
 from .types import Type
 
 ###############################################################################
@@ -135,6 +135,7 @@ def const(value = _NoValue, value_type = _NoValue, amount = _NoValue):
     """
     return ConstProducer(value, value_type, amount)
 
+
 class ListProducer(Producer):
     """
     The ListProducerroducer sends the values from a list downstream.
@@ -207,6 +208,7 @@ def from_list(vlist = _NoValue, item_type = _NoValue):
     """
     return ListProducer(vlist, item_type)
 
+
 class ListConsumer(Consumer):
     """
     Puts consumed values to a list.
@@ -267,7 +269,6 @@ class LambdaPipe(Pipe):
         self._lambda(await, send)
         return MayResume()  
 
-
 def pipe(type_in, type_out, _lambda = None):
     """
     Decorate a function to become a pipe that works via await and send and
@@ -279,7 +280,6 @@ def pipe(type_in, type_out, _lambda = None):
 
         return decorator
     return LambdaPipe(type_in, type_out, _lambda)
-
 
 def transformation(type_in, type_out, _lambda = None):
     """
@@ -318,7 +318,6 @@ class FilterPipe(Pipe):
         raise NotImplementedError("FilterPipe::predicate: implement "
                                   "me for class %s!" % type(self))
 
-
 class LambdaFilterPipe(FilterPipe):
     """
     A filter whos predicate is a lambda.
@@ -328,7 +327,6 @@ class LambdaFilterPipe(FilterPipe):
         self._lambda = _lambda
     def predicate(self, env, val):
         return self._lambda(val)
-
 
 def pass_if(type_io, _lambda = None):
     """
@@ -359,11 +357,14 @@ def maps(a_pipe):
     Maps a pipe over lists from upstream and sends the resulting list
     downstream.
 
-    TODO: This currently can only deal with pipes that do not need to
-    be initialized and produce no results.
+    The pipe is initialized once and produces one result.
     """
     if a_pipe.type_in() == () or a_pipe.type_out() == ():
         raise TypeError("Expected pipe as argument.")
+
+    return subprocess( from_list(item_type = a_pipe.type_in()) >>
+                       a_pipe >>
+                       to_list())
 
     if a_pipe.type_init() != () or a_pipe.type_result() != ():
         raise TypeError("Only can deal with pipes without init and result.")
