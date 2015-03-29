@@ -127,6 +127,28 @@ class TestCompositionBase(object):
         sp.run(1,2)
         assert val[0] == (1,2)
 
+    def test_pipeWithInitAndResult(self):
+        from streamr.simple import from_list, to_list
+
+        class TimesX(StreamProcessor):
+            def __init__(self):
+                super(TimesX, self).__init__(int, int, int, int)
+            def get_initial_env(self, val):
+                return val
+            def step(self, env, await, send):
+                send(env * await())
+                return MayResume(env)
+
+        sp = from_list([1]) >> TimesX() >> to_list()
+        assert sp.type_in() == () 
+        assert sp.type_out() == () 
+        assert sp.type_init() == int 
+        assert sp.type_result() == (int, [int]) 
+
+        assert sp.run(1) == (1, [1])
+        assert sp.run(2) == (2, [2])
+
+
 class TestCompositionTyped(object):
     def test_PrCompCoAny(self, pr, pr_str, co_any):
         sp1 = pr >> co_any
