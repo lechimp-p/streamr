@@ -191,7 +191,7 @@ class ArrowType(Type):
         return self.r_type
 
     def __str__(self):
-        return "(%s -> %s)" % (self.l_type, self.r_type)
+        return "%s -> %s" % (self.l_type, self.r_type)
 
     def is_variable(self):
         return self.l_type.is_variable() or self.r_type.is_variable() 

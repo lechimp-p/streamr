@@ -83,8 +83,8 @@ class StreamProcessor(object):
         return ArrowType.get(self.type_in(), self.type_out())
 
     def __str__(self):
-        return "[%s -> %s](%s)" % ( self.type_init(), self.type_result()
-                                  , self.type_arrow())
+        return "%s -> %s : %s" % ( self.type_init(), self.type_result()
+                                 , self.type_arrow())
 
     def get_initial_env(self, params = ()):
         """
