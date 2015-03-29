@@ -106,17 +106,17 @@ class ConstProducer(Producer):
         else:
             super(ConstProducer, self).__init__(value_type, value_type)
 
-    def get_initial_env(self, *value):
+    def get_initial_env(self, value = _NoValue):
         if self.value is not _NoValue:
-            if len(value) != 0:
+            if value is not _NoValue:
                 raise TypeError("Value already passed in constructor.")
             return [self.value, 0]
 
-        if len(value) != 1 or not self.type_init().contains(value[0]):
+        if not self.type_init().contains(value):
             raise TypeError("Expected value of type '%s' not"
                             " '%s'" % (self.type_init(), value))
 
-        return [value[0], 0]
+        return [value, 0]
 
     def produce(self, env, send):
         if self.amount != _NoValue:
@@ -174,16 +174,16 @@ class ListProducer(Producer):
                 raise TypeError("Expected item of type '%s', got '%s'" 
                                 % (item_type, v))
 
-    def get_initial_env(self, *vlist):
+    def get_initial_env(self, vlist = _NoValue):
         if self.vlist is not _NoValue:
-            if len(vlist) != 0:
+            if vlist is not _NoValue:
                 raise TypeError("Value already passed in constructor.")
             vlist = self.vlist
         else:
-            if len(vlist) != 1 or not self.type_init().contains(vlist[0]):
+            if vlist is _NoValue or not self.type_init().contains(vlist):
                 raise TypeError("Expected list of type '%s' not"
                                 " '%s'" % (self.type_init(), vlist))
-            vlist = list(vlist[0])
+            vlist = list(vlist)
             self._checkList(vlist, self.item_type)
 
         return { "index" : 0, "list" : vlist, "len" : len(vlist) }

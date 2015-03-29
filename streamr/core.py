@@ -86,7 +86,7 @@ class StreamProcessor(object):
         return "%s -> %s : %s" % ( self.type_init(), self.type_result()
                                  , self.type_arrow())
 
-    def get_initial_env(self, params = ()):
+    def get_initial_env(self, *params):
         """
         Initialize a new runtime environment for the stream processor.
         """
