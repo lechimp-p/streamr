@@ -479,4 +479,21 @@ class TestMaps(_TestPipe):
             maps(p_result)
         assert "result" in str(excinfo.value)
         assert isinstance(maps(p_no_init), Pipe)
+
+    def test_mapsWithInit(self):
+        class TimesX(StreamProcessor):
+            def __init__(self):
+                super(TimesX, self).__init__(int, int, int, int)
+            def get_initial_env(self, val):
+                return val
+            def step(self, env, await, send):
+                send(env * await())
+                return MayResume(env)
+
+        sp = from_list([1,2,3]) >> TimesX() >> to_list()     
+        assert sp.run(1) == (1, [1,2,3]) 
+        assert sp.run(2) == (2, [2,4,6]) 
         
+        sp = from_list([[1,2,3]]) >> maps(TimesX()) >> to_list()
+        assert sp.run(1) == [[1,2,3]]
+        assert sp.run(2) == [[2,4,6]]
