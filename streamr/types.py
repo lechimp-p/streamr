@@ -401,7 +401,8 @@ class TypeEngine(object):
                 return False
             return ALL((v[0].contains(v[1]) for v in zip(_type.types, value))) 
         if t == ListType:
-            return ALL((_type.item_type.contains(v) for v in value))
+            return ( isinstance(value, list) and 
+                     ALL((_type.item_type.contains(v) for v in value)))
 
         return False
 
