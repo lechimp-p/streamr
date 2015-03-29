@@ -485,3 +485,19 @@ class TestMaps(_TestPipe):
         sp = from_list([[1,2,3]]) >> maps(TimesX()) >> to_list()
         assert sp.run(1) == [[1,2,3]]
         assert sp.run(2) == [[2,4,6]]
+
+    def test_initOnce(self):
+        init_count = [0]
+
+        class CheckGetInitialEnv(StreamProcessor):
+            def __init__(self):
+                super(CheckGetInitialEnv, self).__init__((), (), int, int)
+            def get_initial_env(self):
+                init_count[0] += 1
+            def step(self, env, await, send):
+                send(await())
+                return MayResume()
+
+        sp = from_list([[1,2,3], [4,5,6]]) >> maps(CheckGetInitialEnv()) >> to_list()
+        assert sp.run() == [[1,2,3], [4,5,6]]
+        assert init_count[0] == 1
