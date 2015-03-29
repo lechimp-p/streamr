@@ -148,6 +148,15 @@ class TestCompositionBase(object):
         assert sp.run(1) == (1, [1])
         assert sp.run(2) == (2, [2])
 
+    def test_initBug(self):
+        from streamr import const, to_list, from_list, subprocess
+
+        c = const(value_type = int, amount = 10)
+        l = to_list()
+        proc = c * c >> l * l 
+
+        assert proc.run(1,2) == ([1] * 10, [2] * 10)
+
 
 class TestCompositionTyped(object):
     def test_PrCompCoAny(self, pr, pr_str, co_any):
