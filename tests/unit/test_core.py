@@ -718,6 +718,12 @@ class TestSubprocess(_TestPipe):
     def result(self, test_values):
         return [ [i] * 10 for i in test_values ]    
 
-    
+    def test_twoInits(self):
+        from streamr import const, to_list, from_list, subprocess
 
+        c = const(value_type = int, amount = 10)
+        l = to_list()
+        proc = c * c >> l * l 
 
+        sp = from_list([(1,2)]) >> subprocess(proc) >> to_list()
+        assert sp.run() == ([1] * 10, [2] * 10)
