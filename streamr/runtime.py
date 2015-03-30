@@ -12,7 +12,11 @@ class SimpleRuntimeEngine(object):
     """
     def run(self, process, params):
         assert process.is_runnable()
-        assert process.type_init().contains(params)
+        if len(params) == 1:
+            assert process.type_init().contains(params[0])
+        else:
+            assert process.type_init().contains(params)
+
 
         def await(val):
             raise RuntimeError("Process should not send a value downstream, "
@@ -22,10 +26,8 @@ class SimpleRuntimeEngine(object):
                                "but send %s" % val)
         
         res = None
-        if isinstance(params, tuple):
-            env = process.get_initial_env(*params)
-        else:
-            env = process.get_initial_env(params)
+        env = process.get_initial_env(params)
+
         try:
             while True:
                 res = process.step(env, await, send)
