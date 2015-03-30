@@ -109,13 +109,7 @@ class ConstProducer(Producer):
     def get_initial_env(self, params):
         super(ConstProducer, self).get_initial_env(params)
         if self.value is not _NoValue:
-            if params is not ():
-                raise TypeError("Value already passed in constructor.")
             return [self.value, 0]
-
-        if not len(params) == 1 or not self.type_init().contains(params[0]):
-            raise TypeError("Expected value of type '%s' not"
-                            " '%s'" % (self.type_init(), params))
 
         return [params[0], 0]
 
@@ -164,31 +158,17 @@ class ListProducer(Producer):
                 raise ValueError("vlist is empty list.")
 
             item_type = Type.infer(vlist[0])
-            self._checkList(vlist, item_type)
+            if not Type.get([item_type]).contains(vlist):
+                raise TypeError("Expected list with items of type '%s'only." % item_type)
             self.vlist = list(vlist)
             super(ListProducer, self).__init__((), item_type)
-
-    @staticmethod
-    def _checkList(vlist, item_type):
-        for v in vlist:
-            if not item_type.contains(v):
-                raise TypeError("Expected item of type '%s', got '%s'" 
-                                % (item_type, v))
 
     def get_initial_env(self, params):
         super(ListProducer, self).get_initial_env(params)
         if self.vlist is not _NoValue:
-            if params is not ():
-                raise TypeError("Value already passed in constructor.")
             vlist = self.vlist
         else:
-            assert len(params) == 1
-            vlist = params[0]
-            if not self.type_init().contains(vlist):
-                raise TypeError("Expected list of type '%s' not"
-                                " '%s'" % (self.type_init(), vlist))
-            vlist = list(vlist)
-            self._checkList(vlist, self.item_type)
+            vlist = list(params[0])
 
         return { "index" : 0, "list" : vlist, "len" : len(vlist) }
 
@@ -231,7 +211,6 @@ class ListConsumer(Consumer):
 
     def get_initial_env(self, params):
         super(ListConsumer, self).get_initial_env(params)
-        assert params == ()
         if self.append_to is None:
             return [False, []]
         return [False]
