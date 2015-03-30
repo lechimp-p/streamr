@@ -106,17 +106,17 @@ class ConstProducer(Producer):
         else:
             super(ConstProducer, self).__init__(value_type, value_type)
 
-    def get_initial_env(self, value = _NoValue):
+    def get_initial_env(self, params):
         if self.value is not _NoValue:
-            if value is not _NoValue:
+            if params is not ():
                 raise TypeError("Value already passed in constructor.")
             return [self.value, 0]
 
-        if not self.type_init().contains(value):
+        if not len(params) == 1 or not self.type_init().contains(params[0]):
             raise TypeError("Expected value of type '%s' not"
-                            " '%s'" % (self.type_init(), value))
+                            " '%s'" % (self.type_init(), params))
 
-        return [value, 0]
+        return [params[0], 0]
 
     def produce(self, env, send):
         if self.amount != _NoValue:
@@ -174,13 +174,15 @@ class ListProducer(Producer):
                 raise TypeError("Expected item of type '%s', got '%s'" 
                                 % (item_type, v))
 
-    def get_initial_env(self, vlist = _NoValue):
+    def get_initial_env(self, params):
         if self.vlist is not _NoValue:
-            if vlist is not _NoValue:
+            if params is not ():
                 raise TypeError("Value already passed in constructor.")
             vlist = self.vlist
         else:
-            if vlist is _NoValue or not self.type_init().contains(vlist):
+            assert len(params) == 1
+            vlist = params[0]
+            if not self.type_init().contains(vlist):
                 raise TypeError("Expected list of type '%s' not"
                                 " '%s'" % (self.type_init(), vlist))
             vlist = list(vlist)
@@ -225,7 +227,8 @@ class ListConsumer(Consumer):
         else:
             super(ListConsumer, self).__init__((), (), tvar)
 
-    def get_initial_env(self):
+    def get_initial_env(self, params):
+        assert params == ()
         if self.append_to is None:
             return [False, []]
         return [False]
@@ -352,29 +355,34 @@ _any = Type.get()
 def nop(v):
     return v
 
+
 def maps(a_pipe):
     """
     Maps a pipe over lists from upstream and sends the resulting list
     downstream.
 
-    The pipe is initialized once and produces one result.
+    The pipe is initialized once per list and produces one result per list,
+    which are collected in a result list.
     """
     if a_pipe.type_in() == () or a_pipe.type_out() == ():
         raise TypeError("Expected pipe as argument.")
 
-    return subprocess( from_list(item_type = a_pipe.type_in()) >>
-                       a_pipe >>
-                       to_list())
+    tinit = a_pipe.type_init()
+    tresult = a_pipe.type_result()
+    tin = a_pipe.type_in()
+    tout = a_pipe.type_out()
+ 
+    mapper = subprocess( from_list(item_type = tin) >>
+                         a_pipe >>
+                         to_list())
 
-    if a_pipe.type_init() != () or a_pipe.type_result() != ():
-        raise TypeError("Only can deal with pipes without init and result.")
+    if a_pipe.type_init() != ():
+        mapper = nop * const(value_type = tinit) >> mapper
 
-    @transformation([a_pipe.type_in()], [a_pipe.type_out()])
-    def mapper(a):
-        sp = from_list(a) >> a_pipe >> to_list()
-        return sp.run()
-
-    return mapper
+    if a_pipe.type_result() != ():
+        mapper = mapper >> to_list() * nop
+       
+    return mapper 
 
 # Maybe to be reused for generator style producers
 #                
