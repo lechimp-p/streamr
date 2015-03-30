@@ -30,7 +30,7 @@ Stream processes are consumer driven, that is, a consumer pulls data from
 upstream until he has enough data or there is no more data in the upstream.
 """
 
-from .types import Type, ArrowType, ALL, sequence, unit
+from .types import Type, ArrowType, ProductType, ALL, sequence, unit
 
 ###############################################################################
 #
@@ -86,10 +86,15 @@ class StreamProcessor(object):
         return "%s -> %s : %s" % ( self.type_init(), self.type_result()
                                  , self.type_arrow())
 
-    def get_initial_env(self, *params):
+    def get_initial_env(self, params):
         """
         Initialize a new runtime environment for the stream processor.
+
+        params adheres to type_init.
         """
+        # For processors with single init param.
+        if len(params) == 1:
+            params = params[0]
         assert self.type_init().contains(params)
 
     def shutdown_env(self, env):
@@ -179,8 +184,6 @@ class StreamProcessor(object):
 
         Process can only be run if its arrow is () -> ().
         """
-        if len(params) == 1:
-            return self.runtime_engine.run(self, params[0])
         return self.runtime_engine.run(self, params)
         
 
@@ -219,7 +222,23 @@ class ComposedStreamProcessor(StreamProcessor):
     Handles initialisation and shutdown of the sub processors.
     """
     def __init__(self, type_in, type_out, processors, substitutions):
-        assert ALL(isinstance(p, StreamProcessor) for p in processors)
+        # It could be the case, that there are multiple processors
+        # where one processors requires a tuple type and the other
+        # processors expect unit. The tuple then needs special
+        # treatment in get_initial_env as it is not wrapped enough. 
+        # to make this logic work. 
+        self.special_get_env_treatment = False
+        cnt_unit = 0
+        cnt_product = 0
+        for p in processors:
+            assert isinstance(p, StreamProcessor)
+            tinit = p.type_init()
+            if isinstance(tinit, ProductType):
+                cnt_product += 1
+            elif tinit == unit:
+                cnt_unit += 1
+        if cnt_product == 1 and cnt_product + cnt_unit == len(processors):
+            self.special_get_env_treatment = True
 
         tinit = (Type.get(*[p.type_init() for p in processors])
                      .substitute_vars(substitutions))
@@ -230,18 +249,34 @@ class ComposedStreamProcessor(StreamProcessor):
 
         self.processors = list(processors)
  
-    def get_initial_env(self, *params):
+    def get_initial_env(self, params):
+        super(ComposedStreamProcessor, self).get_initial_env(params)
+
         envs = []
+
+        # Counter on the position of the next param to consume
+        # for the initalisation of the processors.
         i = 0
         for p in self.processors:
-            if p.type_init() is unit:
-                envs.append(p.get_initial_env())
-            else:
-                assert p.type_init().contains(params[i])
-                envs.append(p.get_initial_env(params[i]))
-                i += 1
-                assert i <= len(params)
+            tinit = p.type_init()
+            if tinit is unit:
+                envs.append(p.get_initial_env(()))
+                continue
 
+            if isinstance(tinit, ProductType):
+                # See comment in constructor
+                if self.special_get_env_treatment:
+                    assert tinit.contains(params)
+                    envs.append(p.get_initial_env(params))
+                    continue
+
+                assert tinit.contains(params[i])
+                envs.append(p.get_initial_env(params[i]))
+            else:
+                assert tinit.contains(params[i])
+                envs.append(p.get_initial_env((params[i],)))
+            i += 1
+        
         return { "envs" : envs }
 
     def shutdown_env(self, env):
@@ -262,8 +297,8 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
                                                        , processors
                                                        , substitutions)
 
-    def get_initial_env(self, *params):
-        env = super(SequentialStreamProcessor, self).get_initial_env(*params)
+    def get_initial_env(self, params):
+        env = super(SequentialStreamProcessor, self).get_initial_env(params)
         env["rt"] = self.runtime_engine.get_initial_env_for_seq(self.processors)
         return env
 
@@ -283,8 +318,8 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
 
         super(ParallelStreamProcessor, self).__init__(tin, tout, processors, {})
 
-    def get_initial_env(self, *params):
-        env = super(ParallelStreamProcessor, self).get_initial_env(*params)
+    def get_initial_env(self, params):
+        env = super(ParallelStreamProcessor, self).get_initial_env(params)
         env["rt"] = self.runtime_engine.get_initial_env_for_par(self.processors)
         return env
 
@@ -311,7 +346,8 @@ class Subprocess(StreamProcessor):
                                         , process.type_init()
                                         , process.type_result())
 
-    def get_initial_env(self, *params):
+    def get_initial_env(self, params):
+        super(Subprocess, self).get_initial_env(params)
         return self.runtime_engine.get_initial_env_for_sub(self.process)
 
     def step(self, env, await, send):
