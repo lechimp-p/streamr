@@ -95,7 +95,9 @@ class StreamProcessor(object):
         # For processors with single init param.
         if len(params) == 1:
             params = params[0]
-        assert self.type_init().contains(params)
+        if not self.type_init().contains(params):
+            raise TypeError("Expected value of type '%s' got '%s'" % 
+                            (self.type_init(), params))
 
     def shutdown_env(self, env):
         """
