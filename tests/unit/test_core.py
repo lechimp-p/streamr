@@ -119,7 +119,7 @@ class TestCompositionBase(object):
             def __init__(self):
                 super(TupleInitStreamProcessor, self).__init__((int, int), (), (), ())
             def get_initial_env(self, params):
-                val[0] = params[0]
+                val[0] = params
             def step(self, env, await, send):
                 return Stop()
 
@@ -372,10 +372,7 @@ class _TestProducer(_TestStreamProcessor):
             if result != self._NoValue:
                 assert result.pop(0) == v
             if not tout.is_variable():
-                if len(v) == 1:
-                    assert tout.contains(v[0])
-                else:
-                    assert tout.contains(v)
+                assert tout.contains(v)
 
         def upstream():
             assert False
@@ -491,7 +488,7 @@ class TestAppendPipe(_TestProducer):
 
     @pytest.fixture
     def env_params(self):
-        return()
+        return ()
 
 def TestPrependPipe(_TestConsumer):
     @pytest.fixture
