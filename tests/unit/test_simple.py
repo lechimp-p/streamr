@@ -151,7 +151,7 @@ class TestConstProducer(_TestProducer):
         assert c1.get_initial_env(()) == [num,0] 
         with pytest.raises(TypeError) as excinfo:
            c1.get_initial_env((num,)) 
-        assert "constructor" in str(excinfo.value)
+        assert "type" in str(excinfo.value)
 
         c2 = const(value_type = int)
         assert c2.type_out() == Type.get(int)
@@ -197,13 +197,13 @@ class TestListProducer(_TestProducer):
         assert c1.get_initial_env(())
         with pytest.raises(TypeError) as excinfo:
            c1.get_initial_env((l,)) 
-        assert "constructor" in str(excinfo.value)
+        assert "type" in str(excinfo.value)
 
         c2 = from_list(item_type = int)
         assert c2.type_out() == Type.get(int)
         with pytest.raises(TypeError) as excinfo:
             c2.get_initial_env(())
-        assert "list" in str(excinfo.value)
+        assert "type" in str(excinfo.value)
         assert c2.get_initial_env((l,))
 
     def test_noEmptyListConstructor(self):

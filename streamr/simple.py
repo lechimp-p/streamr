@@ -107,6 +107,7 @@ class ConstProducer(Producer):
             super(ConstProducer, self).__init__(value_type, value_type)
 
     def get_initial_env(self, params):
+        super(ConstProducer, self).get_initial_env(params)
         if self.value is not _NoValue:
             if params is not ():
                 raise TypeError("Value already passed in constructor.")
@@ -175,6 +176,7 @@ class ListProducer(Producer):
                                 % (item_type, v))
 
     def get_initial_env(self, params):
+        super(ListProducer, self).get_initial_env(params)
         if self.vlist is not _NoValue:
             if params is not ():
                 raise TypeError("Value already passed in constructor.")
@@ -228,6 +230,7 @@ class ListConsumer(Consumer):
             super(ListConsumer, self).__init__((), (), tvar)
 
     def get_initial_env(self, params):
+        super(ListConsumer, self).get_initial_env(params)
         assert params == ()
         if self.append_to is None:
             return [False, []]
