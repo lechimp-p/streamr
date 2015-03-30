@@ -14,4 +14,4 @@ StreamProcessor.runtime_engine = SimpleRuntimeEngine()
 
 __all__ = [ "Resume", "MayResume", "Stop", "Producer", "Consumer", "Pipe"
           , "ConstP", "ListP", "ListC", "pipe", "pass_if", "transformation"
-          , "tee", "nop", "subprocess" ]
+          , "tee", "nop", "subprocess", "maps" ]
