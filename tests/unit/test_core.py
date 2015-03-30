@@ -118,8 +118,8 @@ class TestCompositionBase(object):
         class TupleInitStreamProcessor(StreamProcessor):
             def __init__(self):
                 super(TupleInitStreamProcessor, self).__init__((int, int), (), (), ())
-            def get_initial_env(self, *params):
-                val[0] = params
+            def get_initial_env(self, params):
+                val[0] = params[0]
             def step(self, env, await, send):
                 return Stop()
 
@@ -133,8 +133,8 @@ class TestCompositionBase(object):
         class TimesX(StreamProcessor):
             def __init__(self):
                 super(TimesX, self).__init__(int, int, int, int)
-            def get_initial_env(self, val):
-                return val
+            def get_initial_env(self, params):
+                return params[0]
             def step(self, env, await, send):
                 send(env * await())
                 return MayResume(env)
@@ -364,7 +364,7 @@ class _TestProducer(_TestStreamProcessor):
         assert not producer.type_out().is_variable()
 
     def test_producedValues(self, producer, env_params, max_amount, result):
-        env = producer.get_initial_env(*env_params)
+        env = producer.get_initial_env(env_params)
         count = 0
         tout = producer.type_out()
 
@@ -372,7 +372,10 @@ class _TestProducer(_TestStreamProcessor):
             if result != self._NoValue:
                 assert result.pop(0) == v
             if not tout.is_variable():
-                assert tout.contains(v)
+                if len(v) == 1:
+                    assert tout.contains(v[0])
+                else:
+                    assert tout.contains(v)
 
         def upstream():
             assert False
@@ -391,7 +394,7 @@ class _TestConsumer(_TestStreamProcessor):
         assert consumer.is_consumer()
 
     def test_consumedValues(self, consumer, env_params, max_amount, test_values, result):
-        env = consumer.get_initial_env(*env_params)
+        env = consumer.get_initial_env(env_params)
         t = consumer.type_in()
 
         def upstream():
@@ -433,7 +436,7 @@ class _TestPipe(_TestStreamProcessor):
         assert isinstance(pipe.type_out(), Type)
 
     def test_transformedValues(self, pipe, env_params, max_amount, test_values, result):
-        env = pipe.get_initial_env(*env_params)
+        env = pipe.get_initial_env(env_params)
         tin = pipe.type_in()
         tout = pipe.type_out()
         send_was_called = [False]
@@ -580,7 +583,7 @@ class MockProducer(StreamProcessor):
         super(MockProducer, self).__init__((), (), (), ttype)
         self.value = value
 
-    def get_initial_env(self):
+    def get_initial_env(self, _):
         return 0
 
     def step(self, env, await, send):
@@ -607,7 +610,7 @@ class MockConsumer(StreamProcessor):
     def __init__(self, ttype, max_amount = None):
         super(MockConsumer, self).__init__((), [ttype], ttype, ())
         self.max_amount = max_amount
-    def get_initial_env(self, *params):
+    def get_initial_env(self, _):
         return [] 
     def shutdown_env(self, env):
         pass
@@ -703,9 +706,9 @@ class TestSubprocess(_TestPipe):
         class TestProcess(StreamProcessor):
             def __init__(self):
                 super(TestProcess, self).__init__(int, [int], (), ())
-            def get_initial_env(self, val):
+            def get_initial_env(self, params):
                 test.amount_of_calls_to_get_env += 1
-                return val
+                return params[0]
             def step(self, env, await, send):
                 return Stop([env] * 10) 
 

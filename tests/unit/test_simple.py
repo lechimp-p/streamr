@@ -20,8 +20,9 @@ from streamr.core import StreamProcessor
 class MockProducer(Producer):
     def __init__(self, ttype):
         super(MockProducer,self).__init__(ttype,ttype)
-    def get_initial_env(self, value):
-        return value
+    def get_initial_env(self, params):
+        assert len(params) == 1
+        return params[0] 
     def produce(self, env, send):
         send(env)
         return MayResume()
@@ -49,7 +50,8 @@ class TestMockProducer(_TestProducer):
 class MockConsumer(Consumer):
     def __init__(self, ttype):
         super(MockConsumer,self).__init__((),[ttype],ttype)
-    def get_initial_env(self):
+    def get_initial_env(self, params):
+        assert params == ()
         return [] 
     def consume(self, env, await):
         env.append(await())
@@ -146,17 +148,17 @@ class TestConstProducer(_TestProducer):
         num = 10
         c1 = const(num)
         assert c1.type_out() == Type.get(int)
-        assert c1.get_initial_env() == [num,0] 
+        assert c1.get_initial_env(()) == [num,0] 
         with pytest.raises(TypeError) as excinfo:
-           c1.get_initial_env(num) 
+           c1.get_initial_env((num,)) 
         assert "constructor" in str(excinfo.value)
 
         c2 = const(value_type = int)
         assert c2.type_out() == Type.get(int)
         with pytest.raises(TypeError) as excinfo:
-            c2.get_initial_env()
+            c2.get_initial_env(())
         assert "value" in str(excinfo.value)
-        assert c2.get_initial_env(num) == [num,0]
+        assert c2.get_initial_env((num,)) == [num,0]
 
 
 class TestListProducer(_TestProducer):
@@ -192,17 +194,17 @@ class TestListProducer(_TestProducer):
         l = [10]
         c1 = from_list(l)
         assert c1.type_out() == Type.get(int)
-        assert c1.get_initial_env()
+        assert c1.get_initial_env(())
         with pytest.raises(TypeError) as excinfo:
-           c1.get_initial_env(l) 
+           c1.get_initial_env((l,)) 
         assert "constructor" in str(excinfo.value)
 
         c2 = from_list(item_type = int)
         assert c2.type_out() == Type.get(int)
         with pytest.raises(TypeError) as excinfo:
-            c2.get_initial_env()
+            c2.get_initial_env(())
         assert "list" in str(excinfo.value)
-        assert c2.get_initial_env(l)
+        assert c2.get_initial_env((l,))
 
     def test_noEmptyListConstructor(self):
         with pytest.raises(ValueError) as excinfo:
@@ -472,8 +474,9 @@ class TestMaps(_TestPipe):
         class TimesX(StreamProcessor):
             def __init__(self):
                 super(TimesX, self).__init__(int, int, int, int)
-            def get_initial_env(self, val):
-                return val
+            def get_initial_env(self, param):
+                assert len(param) == 1
+                return param[0] 
             def step(self, env, await, send):
                 send(env * await())
                 return MayResume(env)
@@ -483,16 +486,19 @@ class TestMaps(_TestPipe):
         assert sp.run(2) == (2, [2,4,6]) 
         
         sp = from_list([[1,2,3]]) >> maps(TimesX()) >> to_list()
-        assert sp.run(1) == [[1,2,3]]
-        assert sp.run(2) == [[2,4,6]]
+        assert sp.type_init() == int
+        assert sp.type_result() == ([int], [[int]])
+        assert sp.run(1) == [(1, [1,2,3])]
+        assert sp.run(2) == [(2, [2,4,6])]
 
-    def test_initOnce(self):
+    def test_initForEveryList(self):
         init_count = [0]
 
         class CheckGetInitialEnv(StreamProcessor):
             def __init__(self):
                 super(CheckGetInitialEnv, self).__init__((), (), int, int)
-            def get_initial_env(self):
+            def get_initial_env(self, params):
+                assert params == ()
                 init_count[0] += 1
             def step(self, env, await, send):
                 send(await())
@@ -500,4 +506,4 @@ class TestMaps(_TestPipe):
 
         sp = from_list([[1,2,3], [4,5,6]]) >> maps(CheckGetInitialEnv()) >> to_list()
         assert sp.run() == [[1,2,3], [4,5,6]]
-        assert init_count[0] == 1
+        assert init_count[0] == 2
