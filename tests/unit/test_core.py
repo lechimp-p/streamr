@@ -157,6 +157,39 @@ class TestCompositionBase(object):
 
         assert proc.run(1,2) == ([1] * 10, [2] * 10)
 
+    def test_resultsWithCombinators(self):
+        class ResultsIn(StreamProcessor):
+            def __init__(self, type_result, val, type_in = (), type_out = ()):
+                self.val = val
+                super(ResultsIn, self).__init__((), type_result, type_in, type_out)
+            def get_initial_env(self, params):
+                return list([0])
+            def step(self, env, await, send):
+                if env[0] < 1:
+                    env[0] += 1
+                    if self.type_out() != ():
+                        send(object())
+                    if self.type_in() != ():
+                        await()
+                    return MayResume(self.val)
+                return Stop(self.val)
+
+        r1 = ResultsIn(int, 10)
+        r2 = ResultsIn(str, "hello")
+        assert r1.run() == 10
+        assert r2.run() == "hello" 
+        assert (r1 * r2).run() == (10, "hello")
+
+        r3 = ResultsIn(float, 13.0, (), object)
+        r4 = ResultsIn(dict, {}, object, ())
+        assert (r3 >> r4).run() == (13.0, {})
+        assert (r1 * (r3 >> r4)).run() == (10, (13.0, {}))
+        assert ((r3 >> r4) * r1).run() == ((13.0, {}), 10)
+        assert (r1 * r2 * (r3 >> r4)).run() == ((10, "hello"), (13.0, {}))
+        assert (r1 * r3 >> r4).run() == ((10, 13.0), {})
+        assert (r3 >> r2 * r4).run() == (13.0, ("hello", {}))
+        assert (r1 * r3 >> r2 * r4).run() == ((10, 13.0), ("hello",{}))
+
 
 class TestCompositionTyped(object):
     def test_PrCompCoAny(self, pr, pr_str, co_any):
