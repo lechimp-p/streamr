@@ -165,14 +165,20 @@ class TestCompositionBase(object):
             def get_initial_env(self, params):
                 return list([0])
             def step(self, env, await, send):
-                if env[0] < 1:
+                if env[0] < 2:
                     env[0] += 1
                     if self.type_out() != ():
                         send(object())
                     if self.type_in() != ():
                         await()
-                    return MayResume(self.val)
-                return Stop(self.val)
+                    if self.type_result() != ():
+                        return MayResume(self.val)
+                    else:
+                        return MayResume(self.val)
+                if self.type_result() != ():
+                    return Stop(self.val)
+                else:
+                    return Stop()
 
         r1 = ResultsIn(int, 10)
         r2 = ResultsIn(str, "hello")
@@ -189,6 +195,17 @@ class TestCompositionBase(object):
         assert (r1 * r3 >> r4).run() == ((10, 13.0), {})
         assert (r3 >> r2 * r4).run() == (13.0, ("hello", {}))
         assert (r1 * r3 >> r2 * r4).run() == ((10, 13.0), ("hello",{}))
+
+        r5 = ResultsIn((), (), (), object)
+        r6 = ResultsIn(int, 1, object, object)
+        r7 = ResultsIn(float, 2.0, object, ())
+        assert (r5 >> r6 >> r7).run() == (1,2.0)
+
+        r8 = ResultsIn((), (), object, object)
+        r9 = ResultsIn((), (), (), object)
+        r10 = ResultsIn(str, "hello", object, ())
+        r11 = ResultsIn(str, "world", object, ())
+        assert ((r9 * r9) >> (r10 * r8) >> r11).run() == ("hello", "world")
 
 
 class TestCompositionTyped(object):
