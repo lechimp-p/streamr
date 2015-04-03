@@ -411,7 +411,7 @@ class TestFilterDecorator(_TestPipe):
 class TestTee(_TestPipe):
     @pytest.fixture
     def pipe(self):
-        return tee
+        return tee()
 
     @pytest.fixture
     def test_values(self):
@@ -427,7 +427,7 @@ class TestTee(_TestPipe):
 class TestNop(_TestPipe):
     @pytest.fixture
     def pipe(self):
-        return nop 
+        return nop() 
 
     @pytest.fixture
     def test_values(self):
@@ -470,26 +470,36 @@ class TestMaps(_TestPipe):
             maps(from_list([1]) >> to_list())
         assert "pipe" in str(excinfo.value)
 
-    def test_mapsWithInitAndResult(self):
-        class TimesX(StreamProcessor):
-            def __init__(self):
-                super(TimesX, self).__init__(int, int, int, int)
-            def get_initial_env(self, param):
-                assert len(param) == 1
-                return param[0] 
-            def step(self, env, await, send):
-                send(env * await())
-                return MayResume(env)
+    class TimesX(StreamProcessor):
+        def __init__(self):
+            super(TestMaps.TimesX, self).__init__(int, int, int, int)
+        def get_initial_env(self, param):
+            assert len(param) == 1
+            return param[0] 
+        def step(self, env, await, send):
+            send(env * await())
+            return MayResume(env)
 
-        sp = from_list([1,2,3]) >> TimesX() >> to_list()     
+    def test_mapsWithInitAndResult(self):
+        sp = from_list([1,2,3]) >> self.TimesX() >> to_list()     
         assert sp.run(1) == (1, [1,2,3]) 
         assert sp.run(2) == (2, [2,4,6]) 
-        
-        sp = from_list([[1,2,3]]) >> maps(TimesX()) >> to_list()
+
+        sp = from_list([[1,2,3]]) >> maps(self.TimesX()) >> to_list()
         assert sp.type_init() == int
         assert sp.type_result() == ([int], [[int]])
-        assert sp.run(1) == [(1, [1,2,3])]
-        assert sp.run(2) == [(2, [2,4,6])]
+        assert sp.run(1) == ([1], [[1,2,3]])
+        assert sp.run(2) == ([2], [[2,4,6]])
+
+    def test_mapsNoBug(self):
+        tx = self.TimesX()
+        sp = from_list(item_type = tx.type_in()) >> tx >> to_list()
+        assert sp.type_init() == ([int], int)
+        assert sp.type_result() == (int, [int])
+        assert sp.type_in() == ()
+        assert sp.type_out() == ()
+        assert sp.run([1,2], 1) == (1, [1,2])
+        assert sp.run([1,2], 2) == (2, [2,4])
 
     def test_initForEveryList(self):
         init_count = [0]
@@ -507,3 +517,30 @@ class TestMaps(_TestPipe):
         sp = from_list([[1,2,3], [4,5,6]]) >> maps(CheckGetInitialEnv()) >> to_list()
         assert sp.run() == [[1,2,3], [4,5,6]]
         assert init_count[0] == 2
+
+def test_combinatorBug():
+    fl1 = from_list([1,2,3])
+    fl2 = from_list([4.0,5.0,6.0])
+    prod = fl1 * fl2 
+
+    tl = to_list()
+    tl_n = tl * nop()
+
+    tl2 = to_list()
+
+    sp = prod >> (nop() * nop()) >> (tl * tl2)
+    assert sp.run() == ([1,2,3], [4.0,5.0,6.0])
+
+    sp = prod >> tl_n >> tl2 
+    assert sp.run() == ([1,2,3], [4.0,5.0,6.0])
+
+def test_combinatorSymmetry():
+    tl = to_list()
+    tl_n = nop() * tl
+    tl2 = to_list()
+    prod = from_list([1,2,3]) * from_list([4.0,5.0,6.0])
+
+    sp = prod >> tl_n >> tl2
+    assert sp.run() == ([4.0,5.0,6.0],[1,2,3])
+
+
