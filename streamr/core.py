@@ -279,10 +279,10 @@ class ComposedStreamProcessor(StreamProcessor):
                 envs.append(p.get_initial_env((params[i],)))
             i += 1
         
-        return { "envs" : envs }
+        return envs
 
-    def shutdown_env(self, env):
-        for p, e in zip(self.processors, env["envs"]):
+    def shutdown_env(self, envs):
+        for p, e in zip(self.processors, envs):
             p.shutdown_env(e)
 
 
@@ -300,14 +300,12 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
                                                        , substitutions)
 
     def get_initial_env(self, params):
-        env = super(SequentialStreamProcessor, self).get_initial_env(params)
-        env["rt"] = self.runtime_engine.get_initial_env_for_seq(self.processors)
-        return env
-
-    def step(self, env, await, send):
-        par = self.runtime_engine.RT( self.processors, env["envs"], env["rt"]
-                                    , await, send)
-        return self.runtime_engine.step_seq(par)
+        envs = super(SequentialStreamProcessor, self).get_initial_env(params)
+        return self.runtime_engine.get_seq_rt(self.processors, envs)
+    def shutdown_env(self, rt):
+        super(SequentialStreamProcessor, self).shutdown_env(rt.envs)
+    def step(self, rt, await, send):
+        return rt.step(await, send)
 
 
 class ParallelStreamProcessor(ComposedStreamProcessor):
@@ -321,9 +319,13 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
         super(ParallelStreamProcessor, self).__init__(tin, tout, processors, {})
 
     def get_initial_env(self, params):
-        env = super(ParallelStreamProcessor, self).get_initial_env(params)
+        envs = super(ParallelStreamProcessor, self).get_initial_env(params)
+        env = { "envs" : envs }
         env["rt"] = self.runtime_engine.get_initial_env_for_par(self.processors)
         return env
+
+    def shutdown_env(self, env):
+        super(ParallelStreamProcessor, self).shutdown_env(env["envs"])
 
     def step(self, env, await, send):
         par = self.runtime_engine.RT( self.processors, env["envs"], env["rt"]

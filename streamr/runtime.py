@@ -42,8 +42,11 @@ class SimpleRuntimeEngine(object):
         finally:
             process.shutdown_env(env)
 
-    class _NoRes(object):
-        pass
+    def get_seq_rt(self, processors, envs):
+        """
+        Get runtime for sequential execution.
+        """
+        return SimpleSequentialRuntime(processors, envs)
 
     class RT(object):
         """
@@ -55,130 +58,7 @@ class SimpleRuntimeEngine(object):
             self.rt_env = rt_env
             self.await = await
             self.send = send
-
-    ###########################################################################
-    #
-    # Methods for sequential processing.
-    #
-    ###########################################################################
-
-    def get_initial_env_for_seq(self, processors):
-        """
-        Get the environment required by the runtime for sequential processing of
-        stream processors.
-        """
-        amount_processors = len(processors)
-        return { "caches"     : [[]] * amount_processors
-               , "results"    : [self._NoRes()] * amount_processors
-               , "exhausted"  : [False] * amount_processors
-               , "amount"     : amount_processors
-               , "amount_res" : len(list(filter(
-                                            lambda x: x.type_result() != unit, 
-                                            processors)))
-               }
-
-    def step_seq(self, rt):
-        """
-        Perform a step of the processors sequentially.
-        """
-        assert isinstance(rt, self.RT)
-
-        amount_procs = len(rt.processors)
-        assert rt.rt_env["amount"] == amount_procs
-
-        # This is a pull based implementation, so we do a step
-        # on the last processor in the pipe.
-        last_proc_index = rt.rt_env["amount"] - 1 
-        res = rt.processors[last_proc_index].step( 
-                       rt.envs[last_proc_index]
-                     , self._seq_upstream(rt, last_proc_index)
-                     , self._seq_downstream(rt, last_proc_index)
-                     )       
-
-        # This for sure means we need to resume.
-        if isinstance(res, Resume):
-            # TODO: I think it would be correct to set the result
-            # of the processor to no result here.
-            return Resume()
-
-        # We now know for sure, that there is a result, since
-        # Stop or MayResume were send.
-        rt.rt_env["results"][last_proc_index] = res.result
-
-        if isinstance(res, Stop):
-            is_Res = lambda x: not isinstance(x, self._NoRes)
-            results = list(filter(is_Res, rt.rt_env["results"]))
-            if (len(results) != rt.rt_env["amount_res"]):
-                raise RuntimeError("Last stream processor signals stop,"
-                                   " but there are not enough results.")
-
-        r = self._seq_rectify_result(rt.rt_env)
-        if isinstance(res, MayResume):
-            if r == ():
-                return MayResume()
-            return MayResume(r)
-        # Last processor send stop, so we stop the whole pipeline.
-        return Stop(r)
-        
-
-    def _seq_downstream(self, rt, i):
-        """
-        Downstream from i'th processor.
-        """
-        assert isinstance(rt, self.RT)
-        assert i < rt.rt_env["amount"]
-        assert i >= 0
-
-        # This is the the downstream from the last
-        # processor and therefore identically with
-        # the downstream of the complete 
-        if i == rt.rt_env["amount"] - 1:
-            return rt.send
-
-        # This is the downstream from some processor
-        # inside the stream, so we cache the value for
-        # later usage.
-        def _send(val):
-            rt.rt_env["caches"][i].append(val)
-
-        return _send 
-
-    def _seq_upstream(self, rt, i):
-        """
-        Upstream to i'th processor.
-        """
-        assert isinstance(rt, self.RT)
-        assert i < rt.rt_env["amount"]
-        assert i >= 0
-
-        if i == 0:
-            return rt.await
-
-        def _await():
-            while len(rt.rt_env["caches"][i-1]) == 0:
-                if rt.rt_env["exhausted"][i-1]:
-                    raise Exhausted()
-                p = rt.processors[i-1]
-                us = self._seq_upstream(rt, i-1)
-                ds = self._seq_downstream(rt, i-1)
-                res = p.step(rt.envs[i-1], us, ds)
-                if not isinstance(res, Resume) and p.type_result() != unit:
-                    rt.rt_env["results"][i-1] = res.result
-                if isinstance(res, Stop):
-                    rt.rt_env["exhausted"][i-1] = True
-            return rt.rt_env["caches"][i-1].pop(0)
-
-        return _await
-
-    def _seq_rectify_result(self, rt_env):
-        res = rt_env["results"]
-        if rt_env["amount_res"] == 0:
-            return ()
-        res = list(filter(lambda x: not isinstance(x, self._NoRes), res)) 
-        if rt_env["amount_res"] == 1:
-            return res[0]
-        return tuple(res)
-
+     
     ###########################################################################
     #
     # Methods for parallel processing.
@@ -330,4 +210,166 @@ class SimpleRuntimeEngine(object):
             init = (init, )
         result = rt.processors.run(*init)
         rt.send(result)
-        return MayResume()        
+        return MayResume()    
+
+
+
+class _NoRes(object):
+    pass
+
+
+def _result_mapping(processors):
+    """
+    Creates a dict with i -> j entries, where for each processor
+    that returns a result a new j is introduced and for each
+    processor that produces no result j == None. Also returns
+    the amount of processors that return a result.
+    """
+    j = 0
+    res = {}
+    for i, p in enumerate(processors):
+        if p.type_result() == unit:
+            res[i] = None
+        else:
+            res[i] = j
+            j += 1
+    return res, j
+
+
+class SimpleSequentialRuntime(object):
+    """
+    The runtime to be used by SequentialStreamProcessors.
+    """
+    def __init__(self, processors, envs):
+        assert len(processors) == len(envs)
+        self.processors = processors
+        self.envs = envs
+        self._amount_procs = len(processors)
+        # Caches to store values in the pipe between processors.
+        self._caches = [[]] * (self._amount_procs - 1)
+        self._res_map, self._amount_res = _result_mapping(processors) 
+        self._results = [_NoRes] * self._amount_res
+        # Tracks whether a processor is exhausted
+        self._exhausted = [False] * (self._amount_procs - 1)
+        self._cur_amount_res = 0
+
+    def step(self, await, send):     
+        # This is a pull based implementation, so we do a step
+        # on the last processor in the pipe.
+        last_proc_index = self._amount_procs - 1 
+        res = self.processors[last_proc_index].step( 
+                       self.envs[last_proc_index]
+                     , self._upstream(last_proc_index, send, await)
+                     , self._downstream(last_proc_index, send)
+                     )       
+
+        # This for sure means we need to resume.
+        if isinstance(res, Resume):
+            # TODO: I think it would be correct to set the result
+            # of the processor to no result here.
+            self._delete_result(last_proc_index)
+            return Resume()
+
+        # We now know for sure, that there is a result, since
+        # Stop or MayResume were send.
+        self._write_result(last_proc_index, res.result)
+
+        if isinstance(res, MayResume):
+            if self._has_enough_results():
+                return MayResume(*self._normalized_result())
+            return Resume()
+        else: # isinstance(res, Stop) == True
+            if self._has_enough_results(): 
+                return Stop(*self._normalized_result())
+            raise RuntimeError("Last stream processor signals stop,"
+                               " but there are not enough results.")
+
+    def _downstream(self, i, send):
+        """
+        Downstream from i'th processor.
+        """
+        assert i >= 0
+        assert i < self._amount_procs
+
+        # This is the the downstream from the last
+        # processor and therefore identically with
+        # the downstream of the complete 
+        if i == self._amount_procs - 1:
+            return send
+
+        # This is the downstream from some processor
+        # inside the stream, so we cache the value for
+        # later usage.
+        def _send(val):
+            self._caches[i].append(val)
+
+        return _send 
+
+    def _upstream(self, i, send, await):
+        """
+        Upstream to i'th processor.
+        """
+        assert i >= 0
+        assert i < self._amount_procs
+
+        # This is the upstream to the frontmost processors
+        # so we need to use the upstrean of the while process.
+        if i == 0:
+            return await
+
+        # This is the upstream for a processor inside the stream.
+        left_index = i - 1
+        def _await():
+            # It is fed by the processor to the left.
+            while len(self._caches[left_index]) == 0:
+                # If the processor is exhausted, this processor is
+                # exhausted to.
+                if self._exhausted[left_index]:
+                    raise Exhausted()
+                
+                # So we need to invoke the processor to the left
+                # to get a new value.
+                res = self.processors[left_index].step(
+                                  self.envs[left_index]
+                                , self._upstream(left_index, send, await)
+                                , self._downstream(left_index, send)
+                                )
+
+                # We also need to deal with it's result.
+                if isinstance(res, Resume):
+                    self._delete_result(left_index)
+                elif isinstance(res, Stop):
+                    self._exhausted[left_index] = True
+                    self._write_result(left_index, res.result)
+                elif isinstance(res, MayResume):
+                    self._write_result(left_index, res.result)
+            # When there is a result, we give it to the calling processor.
+            return self._caches[left_index].pop(0)
+        return _await
+
+    def _write_result(self, index, result):
+        i = self._res_map[index]
+        if i is None:
+            return
+        if self._results[i] == _NoRes:
+            self._cur_amount_res += 1
+        self._results[i] = result
+
+    def _delete_result(self, index):
+        i = self._res_map[index]
+        if i is None:
+            return
+        if self._results[i] != _NoRes:
+            self._cur_amount_res -= 1
+        self._results[i] = _NoRes
+
+    def _normalized_result(self):
+        assert self._has_enough_results()
+        if self._amount_res == 0:
+            return () 
+        if self._amount_res == 1:
+            return (self._results[0], )
+        return (tuple(self._results), )
+
+    def _has_enough_results(self):
+        return self._cur_amount_res == self._amount_res
