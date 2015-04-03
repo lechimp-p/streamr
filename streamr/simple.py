@@ -326,16 +326,20 @@ def pass_if(type_io, _lambda = None):
     return LambdaFilterPipe(type_io, _lambda)
 
 
-_any = Type.get()
-@transformation(_any, (_any, _any))
-def tee(v):
-    return v,v
+def tee():
+    _any = Type.get()
+    @transformation(_any, (_any, _any))
+    def tee(v):
+        return v,v
+    return tee
 
 
-_any = Type.get()
-@transformation(_any, _any)
-def nop(v):
-    return v
+def nop():
+    _any = Type.get()
+    @transformation(_any, _any)
+    def nop(v):
+        return v
+    return nop
 
 
 def maps(a_pipe):
@@ -365,6 +369,9 @@ def maps(a_pipe):
         mapper = mapper >> to_list() * nop
        
     return mapper 
+
+
+
 
 # Maybe to be reused for generator style producers
 #                
