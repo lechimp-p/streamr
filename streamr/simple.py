@@ -363,10 +363,10 @@ def maps(a_pipe):
                          to_list())
 
     if a_pipe.type_init() != ():
-        mapper = nop * const(value_type = tinit) >> mapper
+        mapper = nop() * const(value_type = tinit) >> mapper
 
     if a_pipe.type_result() != ():
-        mapper = mapper >> to_list() * nop
+        mapper = mapper >> to_list() * nop()
        
     return mapper 
 
