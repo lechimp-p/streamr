@@ -86,15 +86,24 @@ class SimpleRuntimeEngine(object):
         amount_procs = len(rt.processors)
         assert rt.rt_env["amount"] == amount_procs
 
-        res = rt.processors[-1].step( rt.envs[-1]
-                                    , self._seq_upstream(rt, amount_procs - 1)
-                                    , self._seq_downstream(rt, amount_procs - 1)
-                                 )       
+        # This is a pull based implementation, so we do a step
+        # on the last processor in the pipe.
+        last_proc_index = rt.rt_env["amount"] - 1 
+        res = rt.processors[last_proc_index].step( 
+                       rt.envs[last_proc_index]
+                     , self._seq_upstream(rt, last_proc_index)
+                     , self._seq_downstream(rt, last_proc_index)
+                     )       
 
+        # This for sure means we need to resume.
         if isinstance(res, Resume):
+            # TODO: I think it would be correct to set the result
+            # of the processor to no result here.
             return Resume()
 
-        rt.rt_env["results"][-1] = res.result
+        # We now know for sure, that there is a result, since
+        # Stop or MayResume were send.
+        rt.rt_env["results"][last_proc_index] = res.result
 
         if isinstance(res, Stop):
             is_Res = lambda x: not isinstance(x, self._NoRes)
@@ -108,6 +117,7 @@ class SimpleRuntimeEngine(object):
             if r == ():
                 return MayResume()
             return MayResume(r)
+        # Last processor send stop, so we stop the whole pipeline.
         return Stop(r)
         
 
@@ -119,9 +129,15 @@ class SimpleRuntimeEngine(object):
         assert i < rt.rt_env["amount"]
         assert i >= 0
 
+        # This is the the downstream from the last
+        # processor and therefore identically with
+        # the downstream of the complete 
         if i == rt.rt_env["amount"] - 1:
             return rt.send
 
+        # This is the downstream from some processor
+        # inside the stream, so we cache the value for
+        # later usage.
         def _send(val):
             rt.rt_env["caches"][i].append(val)
 
