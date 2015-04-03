@@ -54,33 +54,11 @@ class SimpleRuntimeEngine(object):
         """
         return SimpleParallelRuntime(processors, envs)
 
-    class RT(object):
+    def get_sub_rt(self, processor):
         """
-        Holds everything that is needed to run a process.
+        Get the runtime for parallel execution.
         """
-        def __init__(self, processors, envs, rt_env, await, send):
-            self.processors = processors
-            self.envs = envs
-            self.rt_env = rt_env
-            self.await = await
-            self.send = send
-
-    ###########################################################################
-    #
-    # Methods for subprocesses.
-    #
-    ###########################################################################
-
-    def get_initial_env_for_sub(self, process):
-        return ()
-
-    def step_sub(self, rt):
-        init = rt.await()
-        if not isinstance(init, tuple):
-            init = (init, )
-        result = rt.processors.run(*init)
-        rt.send(result)
-        return MayResume()    
+        return SimpleSubprocessRuntime(processor)
 
 
 class SimpleRuntime(object):
@@ -122,8 +100,6 @@ class SimpleRuntime(object):
 
     def _has_enough_results(self):
         return self._cur_amount_res == self._amount_res
-
-
 
 
 class SimpleSequentialRuntime(SimpleRuntime):
@@ -332,6 +308,20 @@ class SimpleParallelRuntime(SimpleRuntime):
                 send(data[0])
             else:
                 send(tuple(data))
+
+
+class SimpleSubprocessRuntime(object):
+    def __init__(self, process):
+        self.process = process
+
+    def step(self, await, send):
+        init = await()
+        if not isinstance(init, tuple):
+            init = (init, )
+        result = self.process.run(*init)
+        send(result)
+        return MayResume()
+
 
 class _NoRes(object):
     pass

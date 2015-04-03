@@ -345,11 +345,7 @@ class Subprocess(StreamProcessor):
 
     def get_initial_env(self, params):
         super(Subprocess, self).get_initial_env(params)
-        return self.runtime_engine.get_initial_env_for_sub(self.process)
+        return self.runtime_engine.get_sub_rt(self.process)
 
-    def step(self, env, await, send):
-        par = self.runtime_engine.RT( self.process, (), env
-                                    , await, send)
-        return self.runtime_engine.step_sub(par)
-
-
+    def step(self, rt, await, send):
+        return rt.step(await, send)
