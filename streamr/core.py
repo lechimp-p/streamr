@@ -315,22 +315,15 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
     def __init__(self, processors):
         tin = Type.get(*[p.type_in() for p in processors])
         tout = Type.get(*[p.type_out() for p in processors])
-
         super(ParallelStreamProcessor, self).__init__(tin, tout, processors, {})
 
     def get_initial_env(self, params):
         envs = super(ParallelStreamProcessor, self).get_initial_env(params)
-        env = { "envs" : envs }
-        env["rt"] = self.runtime_engine.get_initial_env_for_par(self.processors)
-        return env
-
-    def shutdown_env(self, env):
-        super(ParallelStreamProcessor, self).shutdown_env(env["envs"])
-
-    def step(self, env, await, send):
-        par = self.runtime_engine.RT( self.processors, env["envs"], env["rt"]
-                                    , await, send)
-        return self.runtime_engine.step_par(par)
+        return self.runtime_engine.get_par_rt(self.processors, envs)
+    def shutdown_env(self, rt):
+        super(ParallelStreamProcessor, self).shutdown_env(rt.envs)
+    def step(self, rt, await, send):
+        return rt.step(await, send)
 
 def subprocess(process):
     return Subprocess(process) 

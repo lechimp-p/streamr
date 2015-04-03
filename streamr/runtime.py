@@ -1,7 +1,7 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
 from .core import Stop, Resume, MayResume, Exhausted
-from .types import unit
+from .types import unit, ALL, ANY
 
 class SimpleRuntimeEngine(object):
     """
@@ -48,6 +48,12 @@ class SimpleRuntimeEngine(object):
         """
         return SimpleSequentialRuntime(processors, envs)
 
+    def get_par_rt(self, processors, envs):
+        """
+        Get the runtime for parallel execution.
+        """
+        return SimpleParallelRuntime(processors, envs)
+
     class RT(object):
         """
         Holds everything that is needed to run a process.
@@ -58,142 +64,6 @@ class SimpleRuntimeEngine(object):
             self.rt_env = rt_env
             self.await = await
             self.send = send
-     
-    ###########################################################################
-    #
-    # Methods for parallel processing.
-    #
-    ###########################################################################
-
-    def get_initial_env_for_par(self, processors):
-        """
-        Get the environment required by the runtime for parallel processing of
-        stream processors.
-        """
-        amount_processors = len(processors)
-        return { "caches_in"  : [[]] * amount_processors
-               , "caches_out" : [[]] * amount_processors
-               , "exhausted"  : [False] * amount_processors
-               , "amount"     : amount_processors
-               , "amount_res" : len(list(filter(
-                                            lambda x: x.type_result() != unit, 
-                                            processors)))
-
-                , "amount_in" : len(list(filter(
-                                            lambda x: x.type_in() != unit,
-                                            processors)))
-                , "amount_out": len(list(filter(lambda x: x.type_out() != unit, 
-                                            processors)))
-               }
-
-    def step_par(self, rt):
-        assert isinstance(rt, self.RT)
-
-        amount_procs = len(rt.processors)
-        assert rt.rt_env["amount"] == amount_procs
-
-        rt.rt_env["results"] = []
-        stop = False
-        must_resume = False
-        for p,i in zip(rt.processors, range(0, amount_procs)):
-            r = p.step( rt.envs[i]
-                      , self._par_upstream(rt, i)
-                      , self._par_downstream(rt, i)
-                      )
-            stop = stop or isinstance(r, Stop)
-            must_resume = must_resume or isinstance(r, Resume)
-            if not isinstance(r, Resume) and p.type_result() != unit:
-                rt.rt_env["results"].append(r.result)
-
-        if stop and must_resume:
-            raise RuntimeError("One consumer wants to stop, while another needs to resume.")
-
-        self._par_flush_caches_out(rt) 
-
-        if must_resume:
-            return Resume()
-
-        res = self._par_rectify_res(rt.rt_env)
-
-        if stop:
-            return Stop(res)
-
-        return MayResume(res)
-
-
-    def _par_downstream(self, rt, i):
-        """
-        Downstream from i't processor.
-        """
-        assert isinstance(rt, self.RT)
-        assert i < rt.rt_env["amount"]
-        assert i >= 0
-
-        def _send(val):
-            rt.rt_env["caches_out"][i].append(val)
-        return _send
-
-    def _par_upstream(self, rt, i):
-        """
-        Upstream to i't processor.
-        """
-        assert isinstance(rt, self.RT)
-        assert i < rt.rt_env["amount"]
-        assert i >= 0
-
-        def _await():
-            while len(rt.rt_env["caches_in"][i]) == 0:
-                self._par_fill_caches_in(rt)
-            return rt.rt_env["caches_in"][i].pop(0)
-
-        return _await
-
-    def _par_fill_caches_in(self, rt):
-        assert isinstance(rt, self.RT)
-        assert rt.rt_env["amount_in"] > 0
-
-        if rt.rt_env["amount_in"] == 1:
-            res = [rt.await()]
-        else:
-            res = list(rt.await())
-
-        for p,i in zip(rt.processors, range(0, rt.rt_env["amount"])):
-            if p.type_in() != unit:
-                rt.rt_env["caches_in"][i].append(res.pop(0))
-
-    def _par_flush_caches_out(self, rt):
-        assert isinstance(rt, self.RT)
-        if rt.rt_env["amount_out"] == 0:
-            return
-
-        resume = True
-        while resume:
-            res = [] 
-            for p,cache in zip(rt.processors, rt.rt_env["caches_out"]):  
-                if p.type_out() == unit: 
-                    continue
-                if len(cache) == 0:
-                    resume = False
-                    break
-                res.append(cache.pop(0))
-            if resume:
-                if rt.rt_env["amount_out"] == 1:
-                    rt.send(res[0])
-                else:
-                    rt.send(tuple(res)) 
-
-        # Reinsert the values we could not send downstream to cache
-        for r, cache in zip(res, rt.rt_env["caches_out"]):
-            cache.insert(0, r)
-
-    def _par_rectify_res(self, rt_env):
-        res = rt_env["results"]
-        assert len(res) == rt_env["amount_res"]
-
-        if rt_env["amount_res"] == 1:
-            return res[0]
-
-        return tuple(res)
 
     ###########################################################################
     #
@@ -213,45 +83,58 @@ class SimpleRuntimeEngine(object):
         return MayResume()    
 
 
-
-class _NoRes(object):
-    pass
-
-
-def _result_mapping(processors):
-    """
-    Creates a dict with i -> j entries, where for each processor
-    that returns a result a new j is introduced and for each
-    processor that produces no result j == None. Also returns
-    the amount of processors that return a result.
-    """
-    j = 0
-    res = {}
-    for i, p in enumerate(processors):
-        if p.type_result() == unit:
-            res[i] = None
-        else:
-            res[i] = j
-            j += 1
-    return res, j
-
-
-class SimpleSequentialRuntime(object):
-    """
-    The runtime to be used by SequentialStreamProcessors.
-    """
+class SimpleRuntime(object):
     def __init__(self, processors, envs):
         assert len(processors) == len(envs)
         self.processors = processors
         self.envs = envs
         self._amount_procs = len(processors)
         # Caches to store values in the pipe between processors.
-        self._caches = [[]] * (self._amount_procs - 1)
         self._res_map, self._amount_res = _result_mapping(processors) 
         self._results = [_NoRes] * self._amount_res
         # Tracks whether a processor is exhausted
-        self._exhausted = [False] * (self._amount_procs - 1)
+        self._exhausted = [False] * self._amount_procs
         self._cur_amount_res = 0
+
+    def _write_result(self, index, result):
+        i = self._res_map[index]
+        if i is None:
+            return
+        if self._results[i] == _NoRes:
+            self._cur_amount_res += 1
+        self._results[i] = result
+
+    def _delete_result(self, index):
+        i = self._res_map[index]
+        if i is None:
+            return
+        if self._results[i] != _NoRes:
+            self._cur_amount_res -= 1
+        self._results[i] = _NoRes
+
+    def _normalized_result(self):
+        assert self._has_enough_results()
+        if self._amount_res == 0:
+            return ()
+        if self._amount_res == 1:
+            return (self._results[0], )
+        return (tuple(self._results), )
+
+    def _has_enough_results(self):
+        return self._cur_amount_res == self._amount_res
+
+
+
+
+class SimpleSequentialRuntime(SimpleRuntime):
+    """
+    The runtime to be used by SequentialStreamProcessors.
+    """
+    def __init__(self, processors, envs):
+        super(SimpleSequentialRuntime, self).__init__(processors, envs)
+
+        # Caches to store values in the pipe between processors.
+        self._caches = [[]] * (self._amount_procs - 1)
 
     def step(self, await, send):     
         # This is a pull based implementation, so we do a step
@@ -347,29 +230,134 @@ class SimpleSequentialRuntime(object):
             return self._caches[left_index].pop(0)
         return _await
 
-    def _write_result(self, index, result):
-        i = self._res_map[index]
-        if i is None:
+
+class SimpleParallelRuntime(SimpleRuntime):
+    """
+    The runtime to be used by ParallelStreamProcessors.
+    """
+    def __init__(self, processors, envs):
+        super(SimpleParallelRuntime, self).__init__(processors, envs)
+        self._in_map, self._amount_in = _in_mapping(processors)
+        self._out_map, self._amount_out = _out_mapping(processors)
+        self._caches_in = [[]] * self._amount_in
+        self._caches_out = [[]] * self._amount_out
+
+    def step(self, await, send):
+        resume = False
+        for i, p in enumerate(self.processors):
+            res = p.step( self.envs[i]
+                        , self._upstream(await, i)
+                        , self._downstream(i)
+                        )
+            if isinstance(res, Resume):
+                self._delete_result(i)
+                resume = True
+            elif isinstance(res, MayResume):
+                self._write_result(i, res.result)
+            elif isinstance(res, Stop):
+                self._write_result(i, res.result)
+                self._exhausted[i] = True
+
+        self._send_downstream(send)
+
+        exhausted = ANY(self._exhausted)
+        if exhausted and resume:
+            raise RuntimeError("One processor wants to resume while other "
+                               "wants to stop.")
+        if resume or not self._has_enough_results():
+            return Resume() 
+        if exhausted:
+            if not self._has_enough_results():
+                raise RuntimeError("One processor wants to stop, but there "
+                                   "are not enough results.")
+            return Stop(*self._normalized_result())
+        return MayResume(*self._normalized_result())
+
+    def _downstream(self, i):
+        """
+        Downstream from the i'th processor.
+        """
+        assert i >= 0
+        assert i < self._amount_procs
+
+        def _send(val):
+            _i = self._out_map[i]
+            if _i is None:
+                raise RuntimeError("Processor %d send value but has no type_out.")
+            self._caches_out[_i].append(val)
+
+        return _send
+
+    def _upstream(self, await, i):
+        """
+        Upstream to the i'th processor.
+        """
+        assert i >= 0
+        assert i < self._amount_procs
+
+        def _await():
+            _i = self._in_map[i]
+            if _i is None:           
+                raise RuntimeError("Processor %d awaits value but has no type_in.")
+            while len(self._caches_in[_i]) == 0:
+                val = await()
+                if self._amount_in == 1:
+                    self._caches_in[0].append(val)        
+                    continue
+                for j, p in enumerate(self.processors):
+                    _j = self._in_map[j]
+                    if _j is None:
+                        continue
+                    self._caches_in[_j].append(val[_j])        
+
+            return self._caches_in[_i].pop(0)
+
+        return _await
+
+    def _send_downstream(self, send):
+        if self._amount_out == 0:
             return
-        if self._results[i] == _NoRes:
-            self._cur_amount_res += 1
-        self._results[i] = result
 
-    def _delete_result(self, index):
-        i = self._res_map[index]
-        if i is None:
-            return
-        if self._results[i] != _NoRes:
-            self._cur_amount_res -= 1
-        self._results[i] = _NoRes
+        can_send = not ANY(map(lambda x: x == [], self._caches_out))
+        while can_send:
+            data = []
+            for i in range(0, self._amount_procs):
+                _i = self._out_map[i]
+                if _i is None:
+                    continue
+                data.append(self._caches_out[_i].pop(0))
+                if len(self._caches_out[_i]) == 0:
+                    can_send = False
+            if self._amount_out == 1:
+                send(data[0])
+            else:
+                send(tuple(data))
 
-    def _normalized_result(self):
-        assert self._has_enough_results()
-        if self._amount_res == 0:
-            return () 
-        if self._amount_res == 1:
-            return (self._results[0], )
-        return (tuple(self._results), )
+class _NoRes(object):
+    pass
 
-    def _has_enough_results(self):
-        return self._cur_amount_res == self._amount_res
+def _result_mapping(processors):
+    return _mapping(processors, lambda p: p.type_result())
+
+def _in_mapping(processors):
+    return _mapping(processors, lambda p: p.type_in())
+
+def _out_mapping(processors):
+    return _mapping(processors, lambda p: p.type_out())
+
+def _mapping(processors, type_lambda):
+    """
+    Creates a dict with i -> j entries, where for every processor
+    where type_lambda is not unit a new j is introduced and for every other processor j is None. Also returns the amount of processors where type_lambda is not None. 
+    """
+    j = 0
+    res = {}
+    for i, p in enumerate(processors):
+        if type_lambda(p) == unit:
+            res[i] = None
+        else:
+            res[i] = j
+            j += 1
+    return res, j
+
+
