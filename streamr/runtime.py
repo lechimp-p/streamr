@@ -337,8 +337,10 @@ def _out_mapping(processors):
 
 def _mapping(processors, type_lambda):
     """
-    Creates a dict with i -> j entries, where for every processor
-    where type_lambda is not unit a new j is introduced and for every other processor j is None. Also returns the amount of processors where type_lambda is not None. 
+    Creates a dict with i -> j entries, where for every processor where 
+    type_lambda is not unit a new j is introduced and for every other 
+    processor j is None. Also returns the amount of processors where 
+    type_lambda is not None. 
     """
     j = 0
     res = {}
