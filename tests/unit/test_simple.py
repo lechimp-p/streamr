@@ -225,6 +225,24 @@ class TestListProducer(_TestProducer):
         assert p.type_out() == Type.get([int], str)
 
 
+class TestListProducerProduct(_TestProducer):
+    @pytest.fixture
+    def max_amount(self):
+        return 3 
+
+    @pytest.fixture
+    def producer(self):
+        return from_list([1,2,3]) * from_list([4,5,6]) 
+
+    @pytest.fixture
+    def env_params(self):
+        return ()
+
+    @pytest.fixture
+    def result(self):
+        return [(1,4), (2,5), (3,6)] 
+
+
 class TestListConsumer(_TestConsumer):
     @pytest.fixture( params = ["result", "append"])
     def style(self, request):
@@ -437,6 +455,44 @@ class TestNop(_TestPipe):
     def result(self):
         return [i for i in range(0, 10)]
 
+class TestListProducerProductAndListConsumerAndNop(_TestProducer):
+    @pytest.fixture
+    def max_amount(self):
+        return 3 
+
+    @pytest.fixture
+    def producer(self):
+        return (   from_list([1,2,3]) * from_list([4,5,6]) 
+                >> (to_list() * nop()))
+
+    @pytest.fixture
+    def env_params(self):
+        return ()
+
+    @pytest.fixture
+    def result(self):
+        return [4, 5, 6] 
+
+class TestListProducerProductAndListConsumerAndNop2(_TestProducer):
+    @pytest.fixture
+    def max_amount(self):
+        return 3 
+
+    @pytest.fixture
+    def producer(self):
+        return (  (from_list([1,2,3]) >> to_list())
+                * (from_list([4,5,6]) >> nop()))
+
+    @pytest.fixture
+    def env_params(self):
+        return ()
+
+    @pytest.fixture
+    def result(self):
+        return [4, 5, 6] 
+
+
+
 class TestMaps(_TestPipe):
     @pytest.fixture
     def pipe(self):
@@ -522,9 +578,12 @@ def test_combinatorBug():
     fl1 = from_list([1,2,3])
     fl2 = from_list([4.0,5.0,6.0])
     prod = fl1 * fl2 
+    assert prod.processors == [fl1, fl2]
 
     tl = to_list()
-    tl_n = tl * nop()
+    n1 = nop()
+    tl_n = tl * n1
+    assert tl_n.processors == [tl, n1]
 
     tl2 = to_list()
 

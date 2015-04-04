@@ -110,7 +110,7 @@ class SimpleSequentialRuntime(SimpleRuntime):
         super(SimpleSequentialRuntime, self).__init__(processors, envs)
 
         # Caches to store values in the pipe between processors.
-        self._caches = [[]] * (self._amount_procs - 1)
+        self._caches = [list() for _ in range(0, self._amount_procs - 1)]
 
     def step(self, await, send):     
         # This is a pull based implementation, so we do a step
@@ -215,8 +215,8 @@ class SimpleParallelRuntime(SimpleRuntime):
         super(SimpleParallelRuntime, self).__init__(processors, envs)
         self._in_map, self._amount_in = _in_mapping(processors)
         self._out_map, self._amount_out = _out_mapping(processors)
-        self._caches_in = [[]] * self._amount_in
-        self._caches_out = [[]] * self._amount_out
+        self._caches_in = [list() for _ in range(0, self._amount_in)]
+        self._caches_out = [list() for _ in range(0, self._amount_out)]
 
     def step(self, await, send):
         resume = False
