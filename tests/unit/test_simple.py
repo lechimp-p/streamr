@@ -545,21 +545,23 @@ class TestMaps(_TestPipe):
         assert sp.run(1) == (1, [1,2,3]) 
         assert sp.run(2) == (2, [2,4,6]) 
 
+        sp = from_list([[1,2,3], [4,5,6]]) >> maps(self.TimesX()) >> to_list()
+        assert sp.type_init() == int
+        assert sp.type_result() == ([int], [[int]])
+        assert sp.run(1) == ([1, 1], [[1,2,3],[4,5,6]])
+        assert sp.run(2) == ([2, 2], [[2,4,6],[8,10,12]])
+
+    def test_mapsPotentialBug1(self):
         sp = from_list([[1,2,3]]) >> maps(self.TimesX()) >> to_list()
         assert sp.type_init() == int
         assert sp.type_result() == ([int], [[int]])
         assert sp.run(1) == ([1], [[1,2,3]])
-        assert sp.run(2) == ([2], [[2,4,6]])
 
-    def test_mapsNoBug(self):
-        tx = self.TimesX()
-        sp = from_list(item_type = tx.type_in()) >> tx >> to_list()
-        assert sp.type_init() == ([int], int)
-        assert sp.type_result() == (int, [int])
-        assert sp.type_in() == ()
-        assert sp.type_out() == ()
-        assert sp.run([1,2], 1) == (1, [1,2])
-        assert sp.run([1,2], 2) == (2, [2,4])
+    def test_mapsPotentialBug2(self):
+        sp = from_list([[1,2,3], []]) >> maps(self.TimesX()) >> to_list()
+        assert sp.type_init() == int
+        assert sp.type_result() == ([int], [[int]])
+        assert sp.run(1) == ([1, 1], [[1,2,3], []])
 
     def test_initForEveryList(self):
         init_count = [0]
