@@ -160,6 +160,10 @@ class TestConstProducer(_TestProducer):
         assert "value" in str(excinfo.value)
         assert c2.get_initial_env((num,)) == [num,0]
 
+    def test_amount(self):
+        sp = const(10, amount = 2) >> to_list()
+        assert sp.run() == [10, 10]
+
 
 class TestListProducer(_TestProducer):
     @pytest.fixture(params =
