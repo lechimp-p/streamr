@@ -149,13 +149,16 @@ class TestCompositionBase(object):
         assert sp.run(2) == (2, [2])
 
     def test_initBug(self):
-        from streamr import const, to_list, from_list, subprocess
+        from streamr import const, to_list
 
         c = const(value_type = int, amount = 10)
         l = to_list()
-        proc = c * c >> l * l 
+        
+        sp = c >> l
+        assert sp.run(1) == [1] * 10
 
-        assert proc.run(1,2) == ([1] * 10, [2] * 10)
+        sp = c * c >> l * l 
+        assert sp.run(1,2) == ([1] * 10, [2] * 10)
 
     def test_resultsWithCombinators(self):
         class ResultsIn(StreamProcessor):

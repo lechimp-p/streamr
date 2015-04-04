@@ -220,11 +220,19 @@ class SimpleParallelRuntime(SimpleRuntime):
 
     def step(self, await, send):
         resume = False
+        exhausted = False 
         for i, p in enumerate(self.processors):
-            res = p.step( self.envs[i]
-                        , self._upstream(await, i)
-                        , self._downstream(i)
-                        )
+            try:
+                res = p.step( self.envs[i]
+                            , self._upstream(await, i)
+                            , self._downstream(i)
+                            )
+            # We make sure that each processor gets the chance
+            # to run an equal number of steps.
+            except Exhausted:
+                exhausted = True
+                continue
+                 
             if isinstance(res, Resume):
                 self._delete_result(i)
                 resume = True
@@ -235,6 +243,9 @@ class SimpleParallelRuntime(SimpleRuntime):
                 self._exhausted[i] = True
 
         self._send_downstream(send)
+
+        if exhausted:
+            raise Exhausted
 
         exhausted = ANY(self._exhausted)
         if exhausted and resume:
