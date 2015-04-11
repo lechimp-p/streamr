@@ -173,6 +173,12 @@ class ListProducer(Producer):
         return { "index" : 0, "list" : vlist, "len" : len(vlist) }
 
     def produce(self, env, send):
+        # Take special care of empty lists, since our downstream
+        # could not possibly know were already out of values.
+        if env["len"] == 0 and env["index"] == 0:
+            env["index"] += 1
+            return Stop()
+
         if env["index"] >= env["len"]:
             raise Exhausted()
 
@@ -228,7 +234,7 @@ class ListConsumer(Consumer):
         if not env[0]:
             env[0] = True
             return MayResume()
-        if self.max_amount is not None and len(self.append_to) > self.max_amount:
+        if self.max_amount is not None and len(self.append_to) >= self.max_amount:
             return Stop()
         self.append_to.append(await())
         return MayResume()
@@ -358,13 +364,22 @@ def maps(a_pipe):
     tin = a_pipe.type_in()
     tout = a_pipe.type_out()
  
+    # Subprocess takes inits from upstream and sends
+    # results downstream.
     mapper = subprocess( from_list(item_type = tin) >>
                          a_pipe >>
                          to_list())
 
+    # If pipe has an init type that means we have to provide
+    # it it with a value, which itself should be given as init
+    # value but is constant over all subprocesses of maps.
+    # As the pipe comes second in the subprocess this is were
+    # the init value needs to go too.
     if a_pipe.type_init() != ():
         mapper = nop() * const(value_type = tinit) >> mapper
 
+    # Same for result, but in this case the result of the pipe
+    # comes first.
     if a_pipe.type_result() != ():
         mapper = mapper >> to_list() * nop()
        
