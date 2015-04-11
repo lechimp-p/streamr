@@ -1,3 +1,9 @@
+import sys
+
+if sys.version_info[0] != 3:
+    raise RuntimeError("This only works in python3, since in python2 "
+                       "unicode-strings and ordinary strings are distinct.")
+
 from streamr.io import read_file, to_json
 from streamr.string import search, replace
 from streamr import tee, nop, transformation, maps
@@ -45,7 +51,7 @@ assert ("c.d", "e") in res
 # turn it to json, search for the placeholders and join this with
 # our custom dict_values transformation.
 
-get_values = tee >> to_json * search("{{([^}]+)}}") >> dict_values
+get_values = tee() >> to_json * search("{{([^}]+)}}") >> dict_values
 
 assert get_values.type_in() == Type.get(str)
 assert get_values.type_out() == Type.get([(str, str)])
@@ -84,7 +90,7 @@ assert ("{{c.d}}", "e") in res
 # And finally the json string replacer. We do not read from a file with it.
 # We need a nop to get the types right.
 
-json_string_replacer = tee >> nop * get_replacements >> replace >> to_json
+json_string_replacer = tee() >> nop() * get_replacements >> replace >> to_json
 
 sp = lp >> json_string_replacer >> lc
 
