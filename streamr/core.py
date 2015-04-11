@@ -105,11 +105,12 @@ class StreamProcessor(object):
         """
         pass
 
-    def step(self, env, await, send):
+    def step(self, env, stream):
         """
-        Performs the actual processing. Gets an env that was created by
-        get_initial_env, a function to pull values from upstream function to 
-        send data downstream.
+        Performs the actual processing.
+
+        @param mixed    env     As created by get_initial_env
+        @param Stream   stream  Interface to the stream.
 
         Must return Stop, MayResume oder Resume.
         """
@@ -188,7 +189,37 @@ class StreamProcessor(object):
         """
         return self.runtime_engine.run(self, params)
         
+###############################################################################
+#
+# Interface to the stream.
+#
+###############################################################################
 
+class _NoRes(object):
+    """
+    We use this to distinguish a non-result from None.
+    """
+    pass
+
+class Stream(object):
+    """
+    This interface is passed to the processors to access the stream.
+    """
+    def await():
+        """
+        Get the next piece of data from upstream.
+        """
+        raise NotImplementedError
+    def send(val):
+        """
+        Send a piece of data downstream.
+        """
+        raise NotImplementedError
+    def result(val = _NoRes):
+        """
+        Signal a result or that there is no result.
+        """
+        raise NotImplementedError
 
 ###############################################################################
 #

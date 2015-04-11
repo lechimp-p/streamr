@@ -333,10 +333,6 @@ class SimpleSubprocessRuntime(object):
         send(result)
         return MayResume()
 
-
-class _NoRes(object):
-    pass
-
 def _result_mapping(processors):
     return _mapping(processors, lambda p: p.type_result())
 
