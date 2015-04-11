@@ -2,6 +2,7 @@
 
 * find something more convenient than _any = Type.get() for type
   vars
+    * use literals like "x" for type vars
 * implement sum types
 * generalize io somehow to make read_file go away for some construction
   like open_file >> read_handle
@@ -17,3 +18,4 @@
 * implement a way to vertically combine stream parts.
 * create test for the environment on stream parts.
 * implement recursive types to implement stuff like a json dict
+* implement a stream type
