@@ -89,12 +89,12 @@ class ConstProducer(Producer):
     A const producer sends a custom value downstream infinitely.
 
     The value to be produced could either be given to the constructor
-    or set via get_initial_env.
+    or set via setup.
     """
     def __init__(self, value = _NoValue, value_type = _NoValue, amount = _NoValue):
         """
         Either pass a value for the const value to be produced or
-        a type of the value if the value should be set via get_initial_env.
+        a type of the value if the value should be set via setup.
         """
         if value is _NoValue and value_type is _NoValue:
             raise TypeError("Either pass value or value_type.")
@@ -106,8 +106,8 @@ class ConstProducer(Producer):
         else:
             super(ConstProducer, self).__init__(value_type, value_type)
 
-    def get_initial_env(self, params):
-        super(ConstProducer, self).get_initial_env(params)
+    def setup(self, params, result):
+        super(ConstProducer, self).setup(params, result)
         if self.value is not _NoValue:
             return [self.value, 0]
 
@@ -126,7 +126,7 @@ def const(value = _NoValue, value_type = _NoValue, amount = _NoValue):
     A const producer sends a custom value downstream infinitely.
 
     The value to be produced could either be given to the constructor
-    or set via get_initial_env.
+    or set via setup.
     """
     return ConstProducer(value, value_type, amount)
 
@@ -135,12 +135,12 @@ class ListProducer(Producer):
     """
     The ListProducerroducer sends the values from a list downstream.
 
-    The list could either be given to the constructor or get_initial_env.
+    The list could either be given to the constructor or setup.
     """
     def __init__(self, vlist = _NoValue, item_type = _NoValue):
         """
         Pass a list of values as vlist or the type of items the list should
-        contain, if the list of values should be given to get_initial_env.
+        contain, if the list of values should be given to setup.
 
         Throws, when vlist contains values of different types.
 
@@ -163,8 +163,8 @@ class ListProducer(Producer):
             self.vlist = list(vlist)
             super(ListProducer, self).__init__((), item_type)
 
-    def get_initial_env(self, params):
-        super(ListProducer, self).get_initial_env(params)
+    def setup(self, params, result):
+        super(ListProducer, self).setup(params, result)
         if self.vlist is not _NoValue:
             vlist = self.vlist
         else:
@@ -204,7 +204,7 @@ class ListConsumer(Consumer):
     Puts consumed values to a list.
 
     Either appends to the list given in the constructor or creates a fresh list 
-    in get_initial_env.
+    in setup.
     """
     def __init__(self, append_to = None, max_amount = None):
         tvar = Type.get()
@@ -215,24 +215,19 @@ class ListConsumer(Consumer):
         else:
             super(ListConsumer, self).__init__((), (), tvar)
 
-    def get_initial_env(self, params):
-        super(ListConsumer, self).get_initial_env(params)
+    def setup(self, params, result):
+        super(ListConsumer, self).setup(params, result)
         if self.append_to is None:
-            return [False, []]
-        return [False]
+            res = []
+            result(res)
+            return [res]
+        return None 
 
     def consume(self, env, await, result):
         if self.append_to is None:
-            # This consumer at least has an empty result,
-            # no matter what...
-            if not env[0]:
-                result([])
-                env[0] = True
-                return MayResume
-
-            env[1].append(await())
-            result(env[1])
-            if self.max_amount is not None and len(env[1]) >= self.max_amount:
+            env.append(await())
+            result(env)
+            if self.max_amount is not None and len(env) >= self.max_amount:
                 return Stop
             return MayResume
 

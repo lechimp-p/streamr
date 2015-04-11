@@ -20,7 +20,7 @@ from streamr.core import StreamProcessor
 class MockProducer(Producer):
     def __init__(self, ttype):
         super(MockProducer,self).__init__(ttype,ttype)
-    def get_initial_env(self, params):
+    def setup(self, params, result):
         assert len(params) == 1
         return params[0] 
     def produce(self, env, send):
@@ -50,11 +50,12 @@ class TestMockProducer(_TestProducer):
 class MockConsumer(Consumer):
     def __init__(self, ttype):
         super(MockConsumer,self).__init__((),[ttype],ttype)
-    def get_initial_env(self, params):
+    def setup(self, params, result):
         assert params == ()
-        return [] 
+        res = []
+        result(res)
+        return res 
     def consume(self, env, await, result):
-        result(env)
         env.append(await())
         result(env)
         return MayResume
@@ -150,17 +151,17 @@ class TestConstProducer(_TestProducer):
         num = 10
         c1 = const(num)
         assert c1.type_out() == Type.get(int)
-        assert c1.get_initial_env(()) == [num,0] 
+        assert c1.setup((), lambda x : None) == [num,0] 
         with pytest.raises(TypeError) as excinfo:
-           c1.get_initial_env((num,)) 
+           c1.setup((num,), lambda x : None) 
         assert "type" in str(excinfo.value)
 
         c2 = const(value_type = int)
         assert c2.type_out() == Type.get(int)
         with pytest.raises(TypeError) as excinfo:
-            c2.get_initial_env(())
+            c2.setup((), lambda x : None)
         assert "value" in str(excinfo.value)
-        assert c2.get_initial_env((num,)) == [num,0]
+        assert c2.setup((num,), lambda x : None) == [num,0]
 
     def test_amount(self):
         sp = const(10, amount = 2) >> to_list()
@@ -200,17 +201,17 @@ class TestListProducer(_TestProducer):
         l = [10]
         c1 = from_list(l)
         assert c1.type_out() == Type.get(int)
-        assert c1.get_initial_env(())
+        assert c1.setup((), lambda x : None)
         with pytest.raises(TypeError) as excinfo:
-           c1.get_initial_env((l,)) 
+           c1.setup((l,), lambda x : None) 
         assert "type" in str(excinfo.value)
 
         c2 = from_list(item_type = int)
         assert c2.type_out() == Type.get(int)
         with pytest.raises(TypeError) as excinfo:
-            c2.get_initial_env(())
+            c2.setup((), lambda x : None)
         assert "type" in str(excinfo.value)
-        assert c2.get_initial_env((l,))
+        assert c2.setup((l,), lambda x : None)
 
     def test_noEmptyListConstructor(self):
         with pytest.raises(ValueError) as excinfo:
@@ -535,15 +536,12 @@ class TestMaps(_TestPipe):
     class TimesX(StreamProcessor):
         def __init__(self):
             super(TestMaps.TimesX, self).__init__(int, int, int, int)
-        def get_initial_env(self, param):
+        def setup(self, param, result):
             assert len(param) == 1
-            return [param[0],False]
+            result(param[0])
+            return param[0]
         def step(self, env, stream):
-            if not env[1]:
-                env[1] = True
-                stream.result(env[0])
-                return MayResume
-            stream.send(env[0] * stream.await())
+            stream.send(env * stream.await())
             return MayResume
 
     def test_TimesX(self):
@@ -579,7 +577,7 @@ class TestMaps(_TestPipe):
         class CheckGetInitialEnv(StreamProcessor):
             def __init__(self):
                 super(CheckGetInitialEnv, self).__init__((), (), int, int)
-            def get_initial_env(self, params):
+            def setup(self, params, result):
                 assert params == ()
                 init_count[0] += 1
             def step(self, env, stream):

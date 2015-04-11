@@ -132,8 +132,8 @@ class SimpleRuntime(object):
         # It could be the case, that there are multiple processors
         # where one processors requires a tuple type and the other
         # processors expect unit. The tuple then needs special
-        # treatment in get_initial_env as it is not wrapped enough. 
-        # to make this logic work. 
+        # treatment as it is not wrapped enough to make this logic 
+        # work. 
         t = SimpleRuntime._should_treat_params_in_setup_special(processors)
         special_setup_param_treatment = t 
 
