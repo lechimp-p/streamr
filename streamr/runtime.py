@@ -131,26 +131,16 @@ class SimpleSequentialRuntime(SimpleRuntime):
 
         # This for sure means we need to resume.
         if state == Resume:
-            #self._delete_result(last_proc_index)
             return Resume
-
-        # We now know for sure, that there is a result, since
-        # Stop or MayResume were send.
-        #self._write_result(last_proc_index, res.result)
 
         if state == MayResume:
             if not self._has_enough_results():
                 return Resume
-            if self._amount_res > 0:
-                stream.result(*self._normalized_result())
             return MayResume
         else: # state == Stop
-            if self._amount_res > 0:
-                if self._has_enough_results(): 
-                    stream.result(*self._normalized_result())
-                else:
-                    raise RuntimeError("Last stream processor signals stop,"
-                                       " but there are not enough results.")
+            if self._amount_res > 0 and not self._has_enough_results(): 
+                raise RuntimeError("Last stream processor signals stop,"
+                                   " but there are not enough results.")
             return Stop
 
 class SequentialStream(Stream):
@@ -216,6 +206,8 @@ class SequentialStream(Stream):
 
     def result(self, val = _NoRes):
         self.runtime._write_result(self.index, val)
+        if self.runtime._has_enough_results():
+            self.stream.result(*self.runtime._normalized_result())
 
 
 class SimpleParallelRuntime(SimpleRuntime):
