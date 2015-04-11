@@ -253,14 +253,10 @@ class SimpleParallelRuntime(SimpleRuntime):
         if resume or not self._has_enough_results():
             return Resume 
         if exhausted:
-            if self._amount_res > 0:
-                if not self._has_enough_results():
-                    raise RuntimeError("One processor wants to stop, but there "
-                                       "are not enough results.")
-                stream.result(*self._normalized_result())
+            if self._amount_res > 0 and not self._has_enough_results():
+                raise RuntimeError("One processor wants to stop, but there "
+                                   "are not enough results.")
             return Stop
-        if self._amount_res > 0:
-            stream.result(*self._normalized_result())
         return MayResume
 
     def _send_downstream(self, stream):
@@ -326,6 +322,8 @@ class ParallelStream(Stream):
 
     def result(self, val = _NoRes):
         self.runtime._write_result(self.index, val)
+        if self.runtime._has_enough_results():
+            self.stream.result(*self.runtime._normalized_result())
 
 
 class SimpleSubprocessRuntime(object):
