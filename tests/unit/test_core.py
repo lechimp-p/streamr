@@ -182,7 +182,8 @@ class TestCompositionBase(object):
                         stream.result(self.val)
                         return MayResume
                     else:
-                        stream.result(self.val)
+                        if self.type_result() != ():
+                            stream.result(self.val)
                         return MayResume
                 if self.type_result() != ():
                     stream.result(self.val)

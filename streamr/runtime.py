@@ -88,7 +88,8 @@ class SimpleRuntime(object):
     def _write_result(self, index, result):
         i = self._res_map[index]
         if i is None:
-            return
+            raise RuntimeError("Process %d tried to write result but "
+                               "has no result type." % i)    
         if self._results[i] == _NoRes:
             self._cur_amount_res += 1
         if result == _NoRes:
