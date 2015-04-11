@@ -205,17 +205,17 @@ class Stream(object):
     """
     This interface is passed to the processors to access the stream.
     """
-    def await():
+    def await(self):
         """
         Get the next piece of data from upstream.
         """
         raise NotImplementedError
-    def send(val):
+    def send(self, val):
         """
         Send a piece of data downstream.
         """
         raise NotImplementedError
-    def result(val = _NoRes):
+    def result(self, val = _NoRes):
         """
         Signal a result or that there is no result.
         """
@@ -335,8 +335,8 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
         return self.runtime_engine.get_seq_rt(self.processors, envs)
     def shutdown_env(self, rt):
         super(SequentialStreamProcessor, self).shutdown_env(rt.envs)
-    def step(self, rt, await, send):
-        return rt.step(await, send)
+    def step(self, rt, stream):
+        return rt.step(stream)
 
 
 class ParallelStreamProcessor(ComposedStreamProcessor):
@@ -353,8 +353,8 @@ class ParallelStreamProcessor(ComposedStreamProcessor):
         return self.runtime_engine.get_par_rt(self.processors, envs)
     def shutdown_env(self, rt):
         super(ParallelStreamProcessor, self).shutdown_env(rt.envs)
-    def step(self, rt, await, send):
-        return rt.step(await, send)
+    def step(self, rt, stream):
+        return rt.step(stream)
 
 def subprocess(process):
     return Subprocess(process) 
@@ -378,5 +378,5 @@ class Subprocess(StreamProcessor):
         super(Subprocess, self).get_initial_env(params)
         return self.runtime_engine.get_sub_rt(self.process)
 
-    def step(self, rt, await, send):
-        return rt.step(await, send)
+    def step(self, rt, stream):
+        return rt.step(stream)
