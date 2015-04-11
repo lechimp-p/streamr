@@ -1,7 +1,7 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
 from .core import Stop, Resume, MayResume, Exhausted, _NoRes, Stream
-from .types import unit, ALL, ANY
+from .types import unit, ANY
 
 class SimpleRuntimeEngine(object):
     """
@@ -17,7 +17,13 @@ class SimpleRuntimeEngine(object):
         else:
             assert process.type_init().contains(params)
 
-        class _Stream(NoUpDownStream):
+        class _Stream(Stream):
+            def await(self):
+                raise RuntimeError("Process should not await values from upstream.")
+            def send(self, val):
+                raise RuntimeError("Process should not send a value downstream, "
+                                   "but send %s" % val)
+
             def result(self, val = _NoRes):
                 res[0] = val
        
@@ -63,49 +69,41 @@ class SimpleRuntimeEngine(object):
         return SimpleSubprocessRuntime(processor)
 
 
-class NoUpDownStream(Stream):
-    def await(self):
-        raise RuntimeError("Process should not send a value downstream, "
-                           "but send %s" % val)
-    def send(self, val):
-        raise RuntimeError("Process should not send a value downstream, "
-                           "but send %s" % val)
-
 
 class SimpleRuntime(object):
     def __init__(self, processors, envs):
         assert len(processors) == len(envs)
         self.processors = processors
         self.envs = envs
-        self._amount_procs = len(processors)
+        self.amount_procs = len(processors)
         # Caches to store values in the pipe between processors.
-        self._res_map, self._amount_res = _result_mapping(processors) 
-        self._results = [_NoRes] * self._amount_res
+        self.res_map, self.amount_res = _result_mapping(processors) 
+        self.results = [_NoRes] * self.amount_res
         # Tracks whether a processor is exhausted
-        self._exhausted = [False] * self._amount_procs
-        self._cur_amount_res = 0
+        self.exhausted = [False] * self.amount_procs
+        self.cur_amount_res = 0
 
-    def _write_result(self, index, result):
-        i = self._res_map[index]
+    def write_result(self, index, result):
+        i = self.res_map[index]
         if i is None:
             raise RuntimeError("Process %d tried to write result but "
                                "has no result type." % i)    
-        if self._results[i] == _NoRes:
-            self._cur_amount_res += 1
+        if self.results[i] == _NoRes:
+            self.cur_amount_res += 1
         if result == _NoRes:
-            self._cur_amount_res -= 1
-        self._results[i] = result
+            self.cur_amount_res -= 1
+        self.results[i] = result
 
-    def _normalized_result(self):
-        assert self._has_enough_results()
-        if self._amount_res == 0:
+    def normalized_result(self):
+        assert self.has_enough_results()
+        if self.amount_res == 0:
             return ()
-        if self._amount_res == 1:
-            return (self._results[0], )
-        return (tuple(self._results), )
+        if self.amount_res == 1:
+            return (self.results[0], )
+        return (tuple(self.results), )
 
-    def _has_enough_results(self):
-        return self._cur_amount_res == self._amount_res
+    def has_enough_results(self):
+        return self.cur_amount_res == self.amount_res
 
 
 class SimpleSequentialRuntime(SimpleRuntime):
@@ -116,16 +114,15 @@ class SimpleSequentialRuntime(SimpleRuntime):
         super(SimpleSequentialRuntime, self).__init__(processors, envs)
 
         # Caches to store values in the pipe between processors.
-        self._caches = [list() for _ in range(0, self._amount_procs - 1)]
+        self.caches = [list() for _ in range(0, self.amount_procs - 1)]
 
     def step(self, stream):     
         # This is a pull based implementation, so we do a step
         # on the last processor in the pipe.
-        last_proc_index = self._amount_procs - 1 
+        last_proc_index = self.amount_procs - 1 
         state = self.processors[last_proc_index].step( 
                        self.envs[last_proc_index]
-                     , SequentialStream(
-                            self, last_proc_index, stream)
+                     , SequentialStream(self, last_proc_index, stream)
                      )       
         assert state in (Stop, MayResume, Resume)
 
@@ -134,11 +131,11 @@ class SimpleSequentialRuntime(SimpleRuntime):
             return Resume
 
         if state == MayResume:
-            if not self._has_enough_results():
+            if not self.has_enough_results():
                 return Resume
             return MayResume
         else: # state == Stop
-            if self._amount_res > 0 and not self._has_enough_results(): 
+            if self.amount_res > 0 and not self.has_enough_results(): 
                 raise RuntimeError("Last stream processor signals stop,"
                                    " but there are not enough results.")
             return Stop
@@ -154,7 +151,7 @@ class SequentialStream(Stream):
         Upstream of the index'th processor.
         """
         assert self.index >= 0
-        assert self.index < self.runtime._amount_procs
+        assert self.index < self.runtime.amount_procs
 
         # This is the upstream to the frontmost processors
         # so we need to use the upstrean of the while process.
@@ -165,49 +162,49 @@ class SequentialStream(Stream):
         left_index = self.index - 1
 
         # It is fed by the processor to the left.
-        while len(self.runtime._caches[left_index]) == 0:
+        while len(self.runtime.caches[left_index]) == 0:
             # If the processor is exhausted, this processor is
             # exhausted to.
-            if self.runtime._exhausted[left_index]:
+            if self.runtime.exhausted[left_index]:
                 raise Exhausted
             
             # So we need to invoke the processor to the left
             # to get a new value.
             state = self.runtime.processors[left_index].step(
                               self.runtime.envs[left_index]
-                            , SequentialStream(
-                                    self.runtime, left_index, self.stream)
+                            , SequentialStream(self.runtime, left_index, 
+                                               self.stream)
                             )
             assert state in (Stop, MayResume, Resume)
 
             if state == Stop:
-                self.runtime._exhausted[left_index] = True
+                self.runtime.exhausted[left_index] = True
 
         # When there is a result, we give it to the calling processor.
-        return self.runtime._caches[left_index].pop(0)
+        return self.runtime.caches[left_index].pop(0)
 
     def send(self, val):
         """
         Downstream from index'th processor.
         """
         assert self.index >= 0
-        assert self.index < self.runtime._amount_procs
+        assert self.index < self.runtime.amount_procs
 
         # This is the the downstream from the last
         # processor and therefore identically with
         # the downstream of the complete 
-        if self.index == self.runtime._amount_procs - 1:
+        if self.index == self.runtime.amount_procs - 1:
             return self.stream.send(val)
 
         # This is the downstream from some processor
         # inside the stream, so we cache the value for
         # later usage.
-        self.runtime._caches[self.index].append(val)
+        self.runtime.caches[self.index].append(val)
 
     def result(self, val = _NoRes):
-        self.runtime._write_result(self.index, val)
-        if self.runtime._has_enough_results():
-            self.stream.result(*self.runtime._normalized_result())
+        self.runtime.write_result(self.index, val)
+        if self.runtime.has_enough_results():
+            self.stream.result(*self.runtime.normalized_result())
 
 
 class SimpleParallelRuntime(SimpleRuntime):
@@ -216,10 +213,10 @@ class SimpleParallelRuntime(SimpleRuntime):
     """
     def __init__(self, processors, envs):
         super(SimpleParallelRuntime, self).__init__(processors, envs)
-        self._in_map, self._amount_in = _in_mapping(processors)
-        self._out_map, self._amount_out = _out_mapping(processors)
-        self._caches_in = [list() for _ in range(0, self._amount_in)]
-        self._caches_out = [list() for _ in range(0, self._amount_out)]
+        self.in_map, self.amount_in = _in_mapping(processors)
+        self.out_map, self.amount_out = _out_mapping(processors)
+        self.caches_in = [list() for _ in range(0, self.amount_in)]
+        self.caches_out = [list() for _ in range(0, self.amount_out)]
 
     def step(self, stream):
         resume = False
@@ -239,41 +236,41 @@ class SimpleParallelRuntime(SimpleRuntime):
             if state == Resume:
                 resume = True
             elif state == Stop:
-                self._exhausted[i] = True
+                self.exhausted[i] = True
 
         self._send_downstream(stream)
 
         if exhausted:
             raise Exhausted
 
-        exhausted = ANY(self._exhausted)
+        exhausted = ANY(self.exhausted)
         if exhausted and resume:
             raise RuntimeError("One processor wants to resume while other "
                                "wants to stop.")
-        if resume or not self._has_enough_results():
+        if resume or not self.has_enough_results():
             return Resume 
         if exhausted:
-            if self._amount_res > 0 and not self._has_enough_results():
+            if self.amount_res > 0 and not self.has_enough_results():
                 raise RuntimeError("One processor wants to stop, but there "
                                    "are not enough results.")
             return Stop
         return MayResume
 
     def _send_downstream(self, stream):
-        if self._amount_out == 0:
+        if self.amount_out == 0:
             return
 
-        can_send = not ANY(map(lambda x: x == [], self._caches_out))
+        can_send = not ANY(map(lambda x: x == [], self.caches_out))
         while can_send:
             data = []
-            for i in range(0, self._amount_procs):
-                _i = self._out_map[i]
+            for i in range(0, self.amount_procs):
+                _i = self.out_map[i]
                 if _i is None:
                     continue
-                data.append(self._caches_out[_i].pop(0))
-                if len(self._caches_out[_i]) == 0:
+                data.append(self.caches_out[_i].pop(0))
+                if len(self.caches_out[_i]) == 0:
                     can_send = False
-            if self._amount_out == 1:
+            if self.amount_out == 1:
                 stream.send(data[0])
             else:
                 stream.send(tuple(data))
@@ -290,40 +287,40 @@ class ParallelStream(Stream):
         Upstream of the index'th processor.
         """
         assert self.index >= 0
-        assert self.index < self.runtime._amount_procs
+        assert self.index < self.runtime.amount_procs
 
-        _i = self.runtime._in_map[self.index]
+        _i = self.runtime.in_map[self.index]
         if _i is None:           
             raise RuntimeError("Processor %d awaits value but has no type_in.")
-        while len(self.runtime._caches_in[_i]) == 0:
+        while len(self.runtime.caches_in[_i]) == 0:
             val = self.stream.await()
-            if self.runtime._amount_in == 1:
-                self.runtime._caches_in[0].append(val)        
+            if self.runtime.amount_in == 1:
+                self.runtime.caches_in[0].append(val)        
                 continue
             for j, p in enumerate(self.runtime.processors):
-                _j = self.runtime._in_map[j]
+                _j = self.runtime.in_map[j]
                 if _j is None:
                     continue
-                self.runtime._caches_in[_j].append(val[_j])        
+                self.runtime.caches_in[_j].append(val[_j])        
 
-        return self.runtime._caches_in[_i].pop(0)
+        return self.runtime.caches_in[_i].pop(0)
 
     def send(self, val):
         """
         Downstream from the index'th processor.
         """
         assert self.index >= 0
-        assert self.index < self.runtime._amount_procs
+        assert self.index < self.runtime.amount_procs
 
-        _i = self.runtime._out_map[self.index]
+        _i = self.runtime.out_map[self.index]
         if _i is None:
             raise RuntimeError("Processor %d send value but has no type_out.")
-        self.runtime._caches_out[_i].append(val)
+        self.runtime.caches_out[_i].append(val)
 
     def result(self, val = _NoRes):
-        self.runtime._write_result(self.index, val)
-        if self.runtime._has_enough_results():
-            self.stream.result(*self.runtime._normalized_result())
+        self.runtime.write_result(self.index, val)
+        if self.runtime.has_enough_results():
+            self.stream.result(*self.runtime.normalized_result())
 
 
 class SimpleSubprocessRuntime(object):
