@@ -137,10 +137,11 @@ class SimpleSequentialRuntime(SimpleRuntime):
         #self._write_result(last_proc_index, res.result)
 
         if state == MayResume:
-            if self._has_enough_results():
+            if not self._has_enough_results():
+                return Resume
+            if self._amount_res > 0:
                 stream.result(*self._normalized_result())
-                return MayResume
-            return Resume
+            return MayResume
         else: # isinstance(res, Stop) == True
             if self._has_enough_results(): 
                 stream.result(*self._normalized_result())
@@ -260,7 +261,8 @@ class SimpleParallelRuntime(SimpleRuntime):
                                    "are not enough results.")
             stream.result(*self._normalized_result())
             return Stop
-        stream.result(*self._normalized_result())
+        if self._amount_res > 0:
+            stream.result(*self._normalized_result())
         return MayResume
 
     def _send_downstream(self, stream):
@@ -332,13 +334,13 @@ class SimpleSubprocessRuntime(object):
     def __init__(self, process):
         self.process = process
 
-    def step(self, await, send):
-        init = await()
+    def step(self, stream):
+        init = stream.await()
         if not isinstance(init, tuple):
             init = (init, )
         result = self.process.run(*init)
-        send(result)
-        return MayResume()
+        stream.send(result)
+        return MayResume
 
 def _result_mapping(processors):
     return _mapping(processors, lambda p: p.type_result())

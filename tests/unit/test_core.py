@@ -423,13 +423,14 @@ class _TestProducer(_TestStreamProcessor):
         env = producer.get_initial_env(env_params)
         count = 0
         tout = producer.type_out()
+        _NoValue = self._NoValue
 
         class _Stream(Stream):
             def await(self):
                 assert False
 
             def send(self, v):
-                if result != self._NoValue:
+                if result != _NoValue:
                     assert result.pop(0) == v
                 if not tout.is_variable():
                     assert tout.contains(v)
@@ -437,7 +438,7 @@ class _TestProducer(_TestStreamProcessor):
             def result(self, res = _NoRes):
                 assert False
 
-        stream = _Stream
+        stream = _Stream()
 
         try:
             for i in range(0, max_amount):
@@ -490,7 +491,7 @@ class _TestConsumer(_TestStreamProcessor):
         finally:
             consumer.shutdown_env(env)
 
-        if res[0] != self._NoValue:
+        if result != self._NoValue:
             assert result == res[0] 
             assert consumer.type_result().contains(res[0])
 
