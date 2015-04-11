@@ -17,8 +17,8 @@ class Producer(StreamProcessor):
     def __init__(self, type_init, type_out):
         super(Producer, self).__init__(type_init, (), (), type_out)
 
-    def step(self, env, await, send):
-        return self.produce(env, send)
+    def step(self, env, stream):
+        return self.produce(env, stream.send)
 
     def produce(self, env, send):
         """
@@ -37,10 +37,10 @@ class Consumer(StreamProcessor):
     def __init__(self, type_init, type_result, type_in):
         super(Consumer, self).__init__(type_init, type_result, type_in, ())
 
-    def step(self, env, await, send):
-        return self.consume(env, await)
+    def step(self, env, stream):
+        return self.consume(env, stream.await, stream.result)
 
-    def consume(self, env, await):
+    def consume(self, env, await, result):
         """
         Consume data from upstream.
 
@@ -59,8 +59,8 @@ class Pipe(StreamProcessor):
     def __init__(self, type_init, type_in, type_out):
         super(Pipe, self).__init__(type_init, (), type_in, type_out)
 
-    def step(self, env, await, send):
-        return self.transform(env, await, send)
+    def step(self, env, stream):
+        return self.transform(env, stream.await, stream.send)
 
     def transform(self, env, await, send):
         """
@@ -116,10 +116,10 @@ class ConstProducer(Producer):
     def produce(self, env, send):
         if self.amount != _NoValue:
             if env[1] == self.amount:
-                return Stop()
+                return Stop
             env[1] += 1
         send(env[0])
-        return MayResume()
+        return MayResume
 
 def const(value = _NoValue, value_type = _NoValue, amount = _NoValue):
     """
@@ -177,18 +177,18 @@ class ListProducer(Producer):
         # could not possibly know were already out of values.
         if env["len"] == 0 and env["index"] == 0:
             env["index"] += 1
-            return Stop()
+            return Stop
 
         if env["index"] >= env["len"]:
-            raise Exhausted()
+            raise Exhausted
 
         send(env["list"][env["index"]])
         env["index"] += 1
 
         if env["index"] == env["len"]:
-            return Stop()        
+            return Stop
 
-        return MayResume()
+        return MayResume
 
 def from_list(vlist = _NoValue, item_type = _NoValue):
     """
@@ -221,23 +221,25 @@ class ListConsumer(Consumer):
             return [False, []]
         return [False]
 
-    def consume(self, env, await):
+    def consume(self, env, await, result):
         if self.append_to is None:
+            # This consumer at least has an empty result,
+            # no matter what...
             if not env[0]:
+                result([])
                 env[0] = True
-                return MayResume([])
-            env[1].append(await())
-            if self.max_amount is not None and len(env[1]) >= self.max_amount:
-                return Stop(env[1])
-            return MayResume(env[1])
+                return MayResume
 
-        if not env[0]:
-            env[0] = True
-            return MayResume()
+            env[1].append(await())
+            result(env[1])
+            if self.max_amount is not None and len(env[1]) >= self.max_amount:
+                return Stop
+            return MayResume
+
         if self.max_amount is not None and len(self.append_to) >= self.max_amount:
-            return Stop()
+            return Stop
         self.append_to.append(await())
-        return MayResume()
+        return MayResume
 
 def to_list(append_to = None, max_amount = None):
     """
@@ -258,7 +260,7 @@ class LambdaPipe(Pipe):
         self._lambda = _lambda
     def transform(self, env, await, send):
         self._lambda(await, send)
-        return MayResume()  
+        return MayResume  
 
 def pipe(type_in, type_out, _lambda = None):
     """
@@ -299,8 +301,8 @@ class FilterPipe(Pipe):
             val = await()
             if self.predicate(env, val):
                 send(val)
-                return MayResume()
-        return MayResume()
+                return MayResume
+        return MayResume
 
     def predicate(self, env, val):
         """

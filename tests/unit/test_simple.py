@@ -25,7 +25,7 @@ class MockProducer(Producer):
         return params[0] 
     def produce(self, env, send):
         send(env)
-        return MayResume()
+        return MayResume
 
 class TestMockProducer(_TestProducer):
     @pytest.fixture( params = 
@@ -53,9 +53,11 @@ class MockConsumer(Consumer):
     def get_initial_env(self, params):
         assert params == ()
         return [] 
-    def consume(self, env, await):
+    def consume(self, env, await, result):
+        result(env)
         env.append(await())
-        return MayResume(env)
+        result(env)
+        return MayResume
 
 class TestMockConsumer(_TestConsumer):
     @pytest.fixture( params = 
@@ -86,7 +88,7 @@ class MockPipe(Pipe):
         self.trafo = trafo
     def transform(self, env, await, send):
         send(self.trafo(await()))
-        return MayResume()
+        return MayResume
 
 class TestMockPipe(_TestPipe):
     @pytest.fixture( params = 
@@ -264,7 +266,7 @@ class TestListConsumer(_TestConsumer):
         if style == "result":
             return [10] * (max_amount-1)
         if style == "append":
-            return ()
+            return self._NoValue 
 
     @pytest.fixture
     def test_values(self, style, max_amount):
@@ -536,12 +538,13 @@ class TestMaps(_TestPipe):
         def get_initial_env(self, param):
             assert len(param) == 1
             return [param[0],False]
-        def step(self, env, await, send):
+        def step(self, env, stream):
             if not env[1]:
                 env[1] = True
-                return MayResume(env[0])
-            send(env[0] * await())
-            return MayResume(env[0])
+                stream.result(env[0])
+                return MayResume
+            stream.send(env[0] * stream.await())
+            return MayResume
 
     def test_TimesX(self):
         sp = from_list(item_type = int) >> self.TimesX() >> to_list()
@@ -579,9 +582,9 @@ class TestMaps(_TestPipe):
             def get_initial_env(self, params):
                 assert params == ()
                 init_count[0] += 1
-            def step(self, env, await, send):
-                send(await())
-                return MayResume()
+            def step(self, env, stream):
+                stream.send(stream.await())
+                return MayResume
 
         sp = from_list([[1,2,3], [4,5,6]]) >> maps(CheckGetInitialEnv()) >> to_list()
         assert sp.run() == [[1,2,3], [4,5,6]]

@@ -126,6 +126,7 @@ class SimpleSequentialRuntime(SimpleRuntime):
                      , SequentialStream(
                             self, last_proc_index, stream)
                      )       
+        assert state in (Stop, MayResume, Resume)
 
         # This for sure means we need to resume.
         if state == Resume:
@@ -142,12 +143,14 @@ class SimpleSequentialRuntime(SimpleRuntime):
             if self._amount_res > 0:
                 stream.result(*self._normalized_result())
             return MayResume
-        else: # isinstance(res, Stop) == True
-            if self._has_enough_results(): 
-                stream.result(*self._normalized_result())
-                return Stop
-            raise RuntimeError("Last stream processor signals stop,"
-                               " but there are not enough results.")
+        else: # state == Stop
+            if self._amount_res > 0:
+                if self._has_enough_results(): 
+                    stream.result(*self._normalized_result())
+                else:
+                    raise RuntimeError("Last stream processor signals stop,"
+                                       " but there are not enough results.")
+            return Stop
 
 class SequentialStream(Stream):
     def __init__(self, runtime, index, stream):
@@ -184,6 +187,7 @@ class SequentialStream(Stream):
                             , SequentialStream(
                                     self.runtime, left_index, self.stream)
                             )
+            assert state in (Stop, MayResume, Resume)
 
             if state == Stop:
                 self.runtime._exhausted[left_index] = True
@@ -256,10 +260,11 @@ class SimpleParallelRuntime(SimpleRuntime):
         if resume or not self._has_enough_results():
             return Resume 
         if exhausted:
-            if not self._has_enough_results():
-                raise RuntimeError("One processor wants to stop, but there "
-                                   "are not enough results.")
-            stream.result(*self._normalized_result())
+            if self._amount_res > 0:
+                if not self._has_enough_results():
+                    raise RuntimeError("One processor wants to stop, but there "
+                                       "are not enough results.")
+                stream.result(*self._normalized_result())
             return Stop
         if self._amount_res > 0:
             stream.result(*self._normalized_result())

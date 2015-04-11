@@ -134,9 +134,13 @@ class TestCompositionBase(object):
             def __init__(self):
                 super(TimesX, self).__init__(int, int, int, int)
             def get_initial_env(self, params):
-                return params[0]
+                return [params[0], False]
             def step(self, env, stream):
-                stream.send(env * stream.await())
+                if env[1] == False:
+                    stream.result(env[0])
+                    env[1] = True
+                    return MayResume
+                stream.send(env[0] * stream.await())
                 return MayResume
 
         sp = from_list([1]) >> TimesX() >> to_list()
@@ -436,7 +440,7 @@ class _TestProducer(_TestStreamProcessor):
                     assert tout.contains(v)
 
             def result(self, res = _NoRes):
-                assert False
+                assert producer.type_result() != () 
 
         stream = _Stream()
 
@@ -493,7 +497,8 @@ class _TestConsumer(_TestStreamProcessor):
 
         if result != self._NoValue:
             assert result == res[0] 
-            assert consumer.type_result().contains(res[0])
+            if not consumer.type_result().is_variable():
+                assert consumer.type_result().contains(res[0])
 
 class _TestPipe(_TestStreamProcessor):
     @pytest.fixture
