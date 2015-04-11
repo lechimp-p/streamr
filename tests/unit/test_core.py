@@ -3,7 +3,7 @@
 import pytest
 
 from streamr.core import ( StreamProcessor, Stop, Resume, MayResume, Exhausted
-                         , subprocess )
+                         , subprocess, Stream, _NoRes )
 from streamr.types import Type, unit, ArrowType
 
 
@@ -120,8 +120,8 @@ class TestCompositionBase(object):
                 super(TupleInitStreamProcessor, self).__init__((int, int), (), (), ())
             def get_initial_env(self, params):
                 val[0] = params
-            def step(self, env, await, send):
-                return Stop()
+            def step(self, env, stream):
+                return Stop
 
         sp = TupleInitStreamProcessor()
         sp.run(1,2)
@@ -135,9 +135,9 @@ class TestCompositionBase(object):
                 super(TimesX, self).__init__(int, int, int, int)
             def get_initial_env(self, params):
                 return params[0]
-            def step(self, env, await, send):
-                send(env * await())
-                return MayResume(env)
+            def step(self, env, stream):
+                stream.send(env * stream.await())
+                return MayResume
 
         sp = from_list([1]) >> TimesX() >> to_list()
         assert sp.type_in() == () 
@@ -167,21 +167,24 @@ class TestCompositionBase(object):
                 super(ResultsIn, self).__init__((), type_result, type_in, type_out)
             def get_initial_env(self, params):
                 return list([0])
-            def step(self, env, await, send):
+            def step(self, env, stream):
                 if env[0] < 2:
                     env[0] += 1
                     if self.type_out() != ():
-                        send(object())
+                        stream.send(object())
                     if self.type_in() != ():
-                        await()
+                        stream.await()
                     if self.type_result() != ():
-                        return MayResume(self.val)
+                        stream.result(self.val)
+                        return MayResume
                     else:
-                        return MayResume(self.val)
+                        stream.result(self.val)
+                        return MayResume
                 if self.type_result() != ():
-                    return Stop(self.val)
+                    stream.result(self.val)
+                    return Stop
                 else:
-                    return Stop()
+                    return Stop
 
         r1 = ResultsIn(int, 10)
         r2 = ResultsIn(str, "hello")
@@ -421,19 +424,30 @@ class _TestProducer(_TestStreamProcessor):
         count = 0
         tout = producer.type_out()
 
-        def downstream(v):
-            if result != self._NoValue:
-                assert result.pop(0) == v
-            if not tout.is_variable():
-                assert tout.contains(v)
+        class _Stream(Stream):
+            def await(self):
+                assert False
 
-        def upstream():
-            assert False
+            def send(self, v):
+                if result != self._NoValue:
+                    assert result.pop(0) == v
+                if not tout.is_variable():
+                    assert tout.contains(v)
 
-        for i in range(0, max_amount):
-            producer.step(env, upstream, downstream)
+            def result(self, res = _NoRes):
+                assert False
 
-        producer.shutdown_env(env)
+        stream = _Stream
+
+        try:
+            for i in range(0, max_amount):
+                state = producer.step(env, stream)
+                if state == Stop:
+                    break
+        except Exhausted:
+            pass
+        finally:
+            producer.shutdown_env(env)
 
 class _TestConsumer(_TestStreamProcessor):
     @pytest.fixture
@@ -447,29 +461,38 @@ class _TestConsumer(_TestStreamProcessor):
         env = consumer.get_initial_env(env_params)
         t = consumer.type_in()
 
-        def upstream():
-            if len(test_values) == 0:
-                raise Exhausted()
+        class _Stream(Stream):
+            def await(self):
+                if len(test_values) == 0:
+                    raise Exhausted()
 
-            return test_values.pop(0)
+                return test_values.pop(0)
 
-        def downstream(val):
-            assert False
+            def send(self, val):
+                assert False
+
+            def result(self, val = _NoRes):
+                res[0] = val
+
+        res = [_NoRes]
+        state = None
+        stream = _Stream()
        
         try:
             count = 0
             while True and count < max_amount:
                 count += 1
-                res = consumer.step(env, upstream, downstream)
-                if isinstance(res, Stop):
+                state = consumer.step(env, stream)
+                if state == Stop:
                     break 
         except Exhausted:
-            assert isinstance(res, MayResume)
+            pass
         finally:
             consumer.shutdown_env(env)
 
-        if result != self._NoValue and not isinstance(res, Resume):
-            assert result == res.result 
+        if res[0] != self._NoValue:
+            assert result == res[0] 
+            assert consumer.type_result().contains(res[0])
 
 class _TestPipe(_TestStreamProcessor):
     @pytest.fixture
@@ -490,34 +513,42 @@ class _TestPipe(_TestStreamProcessor):
         tin = pipe.type_in()
         tout = pipe.type_out()
         send_was_called = [False]
+        _NoValue = self._NoValue
 
-        def upstream():
-            if len(test_values) == 0:
-                raise Exhausted()
-            v = test_values.pop(0) 
-            if not tin.is_variable():
-                assert tin.contains(v)
-            # TODO: There is no test weather the pipe is correct when
-            # tin is a TypeVar.
-            return v
+        class _Stream(Stream):
+            def await(self):
+                if len(test_values) == 0:
+                    raise Exhausted
+                v = test_values.pop(0) 
+                if not tin.is_variable():
+                    assert tin.contains(v)
+                # TODO: There is no test weather the pipe is correct when
+                # tin is a TypeVar.
+                return v
 
-        def downstream(v):
-            send_was_called[0] = True
-            if result != self._NoValue:
-                assert result.pop(0) == v
-            if not tout.is_variable():
-                assert tout.contains(v)
-            # TODO: There is no test weather the pipe is correct when
-            # tout is a TypeVar.
+            def send(self, v):
+                send_was_called[0] = True
+                if result != _NoValue:
+                    assert result.pop(0) == v
+                if not tout.is_variable():
+                    assert tout.contains(v)
+                # TODO: There is no test weather the pipe is correct when
+                # tout is a TypeVar.
+
+            def result(self, val = _NoRes):
+                # A pipe should not have a result.
+                assert False
+
+        stream = _Stream()
 
         try:
             for i in range(0, min(max_amount, len(test_values))):
-                res = pipe.step(env, upstream, downstream)
-                assert isinstance(res, (Stop, MayResume, Resume))
-                if isinstance(res, Stop):
+                state = pipe.step(env, stream)
+                assert state in (Stop, MayResume, Resume)
+                if state == Stop:
                     break 
         except Exhausted:
-            assert isinstance(res, MayResume)
+            pass
         finally:
             pipe.shutdown_env(env)
 
@@ -636,12 +667,12 @@ class MockProducer(StreamProcessor):
     def get_initial_env(self, _):
         return 0
 
-    def step(self, env, await, send):
+    def step(self, env, stream):
         if env >= 100:
             raise RuntimeError("I did not expect this to run that long...")
         env += 1
-        send(self.value)
-        return MayResume()
+        stream.send(self.value)
+        return MayResume
 
 class TestMockProducer(_TestProducer):
     @pytest.fixture
@@ -665,13 +696,14 @@ class MockConsumer(StreamProcessor):
     def shutdown_env(self, env):
         pass
 
-    def step(self, env, await, send):
-        env.append(await())
+    def step(self, env, stream):
+        env.append(stream.await())
+        stream.result(env)
 
         if self.max_amount is not None and len(env) >= self.max_amount:
-            return Stop(env)
+            return Stop
 
-        return MayResume(env)
+        return MayResume
 
 class TestMockConsumer(_TestConsumer):
     @pytest.fixture
@@ -691,9 +723,9 @@ class MockPipe(StreamProcessor):
         super(MockPipe, self).__init__((), (), type_in, type_out)
         self.trafo = (lambda x : x) if transform is None else transform
 
-    def step(self, env, await, send):
-        send(self.trafo(await()))
-        return MayResume()
+    def step(self, env, stream):
+        stream.send(self.trafo(stream.await()))
+        return MayResume
 
 class TestMockPipe(_TestPipe):
     @pytest.fixture
@@ -759,8 +791,9 @@ class TestSubprocess(_TestPipe):
             def get_initial_env(self, params):
                 test.amount_of_calls_to_get_env += 1
                 return params[0]
-            def step(self, env, await, send):
-                return Stop([env] * 10) 
+            def step(self, env, stream):
+                stream.result([env] * 10) 
+                return Stop
 
         return subprocess(TestProcess())
 
