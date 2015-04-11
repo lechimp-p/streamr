@@ -535,10 +535,17 @@ class TestMaps(_TestPipe):
             super(TestMaps.TimesX, self).__init__(int, int, int, int)
         def get_initial_env(self, param):
             assert len(param) == 1
-            return param[0] 
+            return [param[0],False]
         def step(self, env, await, send):
-            send(env * await())
-            return MayResume(env)
+            if not env[1]:
+                env[1] = True
+                return MayResume(env[0])
+            send(env[0] * await())
+            return MayResume(env[0])
+
+    def test_TimesX(self):
+        sp = from_list(item_type = int) >> self.TimesX() >> to_list()
+        assert sp.run([],1) == (1, [])
 
     def test_mapsWithInitAndResult(self):
         sp = from_list([1,2,3]) >> self.TimesX() >> to_list()     
@@ -551,13 +558,13 @@ class TestMaps(_TestPipe):
         assert sp.run(1) == ([1, 1], [[1,2,3],[4,5,6]])
         assert sp.run(2) == ([2, 2], [[2,4,6],[8,10,12]])
 
-    def test_mapsPotentialBug1(self):
+    def test_mapsBug1(self):
         sp = from_list([[1,2,3]]) >> maps(self.TimesX()) >> to_list()
         assert sp.type_init() == int
         assert sp.type_result() == ([int], [[int]])
         assert sp.run(1) == ([1], [[1,2,3]])
 
-    def test_mapsPotentialBug2(self):
+    def test_mapsBug2(self):
         sp = from_list([[1,2,3], []]) >> maps(self.TimesX()) >> to_list()
         assert sp.type_init() == int
         assert sp.type_result() == ([int], [[int]])
