@@ -211,6 +211,7 @@ class SequentialStream(Stream):
     def result(self, val = _NoRes):
         self.runtime._write_result(self.index, val)
 
+
 class SimpleParallelRuntime(SimpleRuntime):
     """
     The runtime to be used by ParallelStreamProcessors.
@@ -222,31 +223,27 @@ class SimpleParallelRuntime(SimpleRuntime):
         self._caches_in = [list() for _ in range(0, self._amount_in)]
         self._caches_out = [list() for _ in range(0, self._amount_out)]
 
-    def step(self, await, send):
+    def step(self, stream):
         resume = False
         exhausted = False 
         for i, p in enumerate(self.processors):
             try:
-                res = p.step( self.envs[i]
-                            , self._upstream(await, i)
-                            , self._downstream(i)
-                            )
+                state = p.step( self.envs[i]
+                              , ParallelStream(self, i, stream)
+                              )
+                assert state in (Stop, Resume, MayResume)
             # We make sure that each processor gets the chance
             # to run an equal number of steps.
             except Exhausted:
                 exhausted = True
                 continue
                  
-            if isinstance(res, Resume):
-                self._delete_result(i)
+            if state == Resume:
                 resume = True
-            elif isinstance(res, MayResume):
-                self._write_result(i, res.result)
-            elif isinstance(res, Stop):
-                self._write_result(i, res.result)
+            elif state == Stop:
                 self._exhausted[i] = True
 
-        self._send_downstream(send)
+        self._send_downstream(stream)
 
         if exhausted:
             raise Exhausted
@@ -256,56 +253,17 @@ class SimpleParallelRuntime(SimpleRuntime):
             raise RuntimeError("One processor wants to resume while other "
                                "wants to stop.")
         if resume or not self._has_enough_results():
-            return Resume() 
+            return Resume 
         if exhausted:
             if not self._has_enough_results():
                 raise RuntimeError("One processor wants to stop, but there "
                                    "are not enough results.")
-            return Stop(*self._normalized_result())
-        return MayResume(*self._normalized_result())
+            stream.result(*self._normalized_result())
+            return Stop
+        stream.result(*self._normalized_result())
+        return MayResume
 
-    def _downstream(self, i):
-        """
-        Downstream from the i'th processor.
-        """
-        assert i >= 0
-        assert i < self._amount_procs
-
-        def _send(val):
-            _i = self._out_map[i]
-            if _i is None:
-                raise RuntimeError("Processor %d send value but has no type_out.")
-            self._caches_out[_i].append(val)
-
-        return _send
-
-    def _upstream(self, await, i):
-        """
-        Upstream to the i'th processor.
-        """
-        assert i >= 0
-        assert i < self._amount_procs
-
-        def _await():
-            _i = self._in_map[i]
-            if _i is None:           
-                raise RuntimeError("Processor %d awaits value but has no type_in.")
-            while len(self._caches_in[_i]) == 0:
-                val = await()
-                if self._amount_in == 1:
-                    self._caches_in[0].append(val)        
-                    continue
-                for j, p in enumerate(self.processors):
-                    _j = self._in_map[j]
-                    if _j is None:
-                        continue
-                    self._caches_in[_j].append(val[_j])        
-
-            return self._caches_in[_i].pop(0)
-
-        return _await
-
-    def _send_downstream(self, send):
+    def _send_downstream(self, stream):
         if self._amount_out == 0:
             return
 
@@ -320,9 +278,54 @@ class SimpleParallelRuntime(SimpleRuntime):
                 if len(self._caches_out[_i]) == 0:
                     can_send = False
             if self._amount_out == 1:
-                send(data[0])
+                stream.send(data[0])
             else:
-                send(tuple(data))
+                stream.send(tuple(data))
+
+
+class ParallelStream(Stream):
+    def __init__(self, runtime, index, stream):
+        self.runtime = runtime
+        self.index = index
+        self.stream = stream
+
+    def await(self):
+        """
+        Upstream of the index'th processor.
+        """
+        assert self.index >= 0
+        assert self.index < self.runtime._amount_procs
+
+        _i = self.runtime._in_map[self.index]
+        if _i is None:           
+            raise RuntimeError("Processor %d awaits value but has no type_in.")
+        while len(self.runtime._caches_in[_i]) == 0:
+            val = self.stream.await()
+            if self.runtime._amount_in == 1:
+                self.runtime._caches_in[0].append(val)        
+                continue
+            for j, p in enumerate(self.runtime.processors):
+                _j = self.runtime._in_map[j]
+                if _j is None:
+                    continue
+                self.runtime._caches_in[_j].append(val[_j])        
+
+        return self.runtime._caches_in[_i].pop(0)
+
+    def send(self, val):
+        """
+        Downstream from the index'th processor.
+        """
+        assert self.index >= 0
+        assert self.index < self.runtime._amount_procs
+
+        _i = self.runtime._out_map[self.index]
+        if _i is None:
+            raise RuntimeError("Processor %d send value but has no type_out.")
+        self.runtime._caches_out[_i].append(val)
+
+    def result(self, val = _NoRes):
+        self.runtime._write_result(self.index, val)
 
 
 class SimpleSubprocessRuntime(object):
