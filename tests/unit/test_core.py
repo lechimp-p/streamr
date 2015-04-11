@@ -118,7 +118,7 @@ class TestCompositionBase(object):
         class TupleInitStreamProcessor(StreamProcessor):
             def __init__(self):
                 super(TupleInitStreamProcessor, self).__init__((int, int), (), (), ())
-            def get_initial_env(self, params):
+            def setup(self, params, result):
                 val[0] = params
             def step(self, env, stream):
                 return Stop
@@ -133,14 +133,11 @@ class TestCompositionBase(object):
         class TimesX(StreamProcessor):
             def __init__(self):
                 super(TimesX, self).__init__(int, int, int, int)
-            def get_initial_env(self, params):
-                return [params[0], False]
+            def setup(self, params, result):
+                result(params[0])
+                return params[0]
             def step(self, env, stream):
-                if env[1] == False:
-                    stream.result(env[0])
-                    env[1] = True
-                    return MayResume
-                stream.send(env[0] * stream.await())
+                stream.send(env * stream.await())
                 return MayResume
 
         sp = from_list([1]) >> TimesX() >> to_list()
@@ -169,8 +166,10 @@ class TestCompositionBase(object):
             def __init__(self, type_result, val, type_in = (), type_out = ()):
                 self.val = val
                 super(ResultsIn, self).__init__((), type_result, type_in, type_out)
-            def get_initial_env(self, params):
-                return list([0])
+            def setup(self, params, result):
+                if self.type_result() != ():
+                    stream.result(self.val)
+                return [0]
             def step(self, env, stream):
                 if env[0] < 2:
                     env[0] += 1
@@ -178,16 +177,7 @@ class TestCompositionBase(object):
                         stream.send(object())
                     if self.type_in() != ():
                         stream.await()
-                    if self.type_result() != ():
-                        stream.result(self.val)
-                        return MayResume
-                    else:
-                        if self.type_result() != ():
-                            stream.result(self.val)
-                        return MayResume
-                if self.type_result() != ():
-                    stream.result(self.val)
-                    return Stop
+                    return MayResume
                 else:
                     return Stop
 
@@ -425,7 +415,6 @@ class _TestProducer(_TestStreamProcessor):
         assert not producer.type_out().is_variable()
 
     def test_producedValues(self, producer, env_params, max_amount, result):
-        env = producer.get_initial_env(env_params)
         count = 0
         tout = producer.type_out()
         _NoValue = self._NoValue
@@ -444,6 +433,7 @@ class _TestProducer(_TestStreamProcessor):
                 assert producer.type_result() != () 
 
         stream = _Stream()
+        env = producer.setup(env_params, stream.result)
 
         try:
             for i in range(0, max_amount):
@@ -453,7 +443,7 @@ class _TestProducer(_TestStreamProcessor):
         except Exhausted:
             pass
         finally:
-            producer.shutdown_env(env)
+            producer.teardown(env)
 
 class _TestConsumer(_TestStreamProcessor):
     @pytest.fixture
@@ -464,7 +454,6 @@ class _TestConsumer(_TestStreamProcessor):
         assert consumer.is_consumer()
 
     def test_consumedValues(self, consumer, env_params, max_amount, test_values, result):
-        env = consumer.get_initial_env(env_params)
         t = consumer.type_in()
 
         class _Stream(Stream):
@@ -483,6 +472,7 @@ class _TestConsumer(_TestStreamProcessor):
         res = [_NoRes]
         state = None
         stream = _Stream()
+        env = consumer.setup(env_params, stream.result)
        
         try:
             count = 0
@@ -494,7 +484,7 @@ class _TestConsumer(_TestStreamProcessor):
         except Exhausted:
             pass
         finally:
-            consumer.shutdown_env(env)
+            consumer.teardown(env)
 
         if result != self._NoValue:
             assert result == res[0] 
@@ -516,7 +506,6 @@ class _TestPipe(_TestStreamProcessor):
         assert isinstance(pipe.type_out(), Type)
 
     def test_transformedValues(self, pipe, env_params, max_amount, test_values, result):
-        env = pipe.get_initial_env(env_params)
         tin = pipe.type_in()
         tout = pipe.type_out()
         send_was_called = [False]
@@ -547,6 +536,7 @@ class _TestPipe(_TestStreamProcessor):
                 assert False
 
         stream = _Stream()
+        env = pipe.setup(env_params, stream.result)
 
         try:
             for i in range(0, min(max_amount, len(test_values))):
@@ -557,7 +547,7 @@ class _TestPipe(_TestStreamProcessor):
         except Exhausted:
             pass
         finally:
-            pipe.shutdown_env(env)
+            pipe.teardown(env)
 
         assert send_was_called[0]
 
@@ -671,7 +661,7 @@ class MockProducer(StreamProcessor):
         super(MockProducer, self).__init__((), (), (), ttype)
         self.value = value
 
-    def get_initial_env(self, _):
+    def setup(self, _, __):
         return 0
 
     def step(self, env, stream):
@@ -698,9 +688,9 @@ class MockConsumer(StreamProcessor):
     def __init__(self, ttype, max_amount = None):
         super(MockConsumer, self).__init__((), [ttype], ttype, ())
         self.max_amount = max_amount
-    def get_initial_env(self, _):
+    def setup(self, _, __):
         return [] 
-    def shutdown_env(self, env):
+    def teardown(self, env):
         pass
 
     def step(self, env, stream):
@@ -795,11 +785,11 @@ class TestSubprocess(_TestPipe):
         class TestProcess(StreamProcessor):
             def __init__(self):
                 super(TestProcess, self).__init__(int, [int], (), ())
-            def get_initial_env(self, params):
+            def setup(self, params, result):
+                result([params[0]] * 10) 
                 test.amount_of_calls_to_get_env += 1
-                return params[0]
+                return None 
             def step(self, env, stream):
-                stream.result([env] * 10) 
                 return Stop
 
         return subprocess(TestProcess())

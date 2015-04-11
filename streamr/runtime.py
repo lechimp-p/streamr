@@ -1,7 +1,7 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
-from .core import Stop, Resume, MayResume, Exhausted, _NoRes, Stream
-from .types import unit, ANY
+from .core import Stop, Resume, MayResume, Exhausted, _NoRes, Stream, StreamProcessor
+from .types import unit, ANY, ProductType
 
 class SimpleRuntimeEngine(object):
     """
@@ -28,8 +28,8 @@ class SimpleRuntimeEngine(object):
                 res[0] = val
        
         res = [_NoRes] 
-        env = process.get_initial_env(params)
         stream = _Stream()
+        env = process.setup(params, stream.result)
 
         try:
             while True:
@@ -41,7 +41,7 @@ class SimpleRuntimeEngine(object):
         except Exhausted:
             pass
         finally:
-            process.shutdown_env(env)
+            process.teardown(env)
 
         if process.type_result() != ():
             if res[0] == _NoRes:
@@ -50,31 +50,48 @@ class SimpleRuntimeEngine(object):
         else:
             return ()
 
-    def get_seq_rt(self, processors, envs):
+    def setup_seq_rt(self, processors, params, result):
         """
         Get runtime for sequential execution.
         """
-        return SimpleSequentialRuntime(processors, envs)
+        return SimpleSequentialRuntime(processors, params, result)
 
-    def get_par_rt(self, processors, envs):
+    def teardown_seq_rt(self, rt):
+        """
+        Teardown a runtime for sequential execution.
+        """
+        rt.teardown()
+
+    def setup_par_rt(self, processors, params, result):
         """
         Get the runtime for parallel execution.
         """
-        return SimpleParallelRuntime(processors, envs)
+        return SimpleParallelRuntime(processors, params, result)
 
-    def get_sub_rt(self, processor):
+    def teardown_par_rt(self, rt):
+        """
+        Teardown a runtime for sequential execution.
+        """
+        rt.teardown()
+
+    def setup_sub_rt(self, processor, params, result):
         """
         Get the runtime for parallel execution.
         """
-        return SimpleSubprocessRuntime(processor)
+        return SimpleSubprocessRuntime(processor, params, result)
+
+    def teardown_sub_rt(self, rt):
+        """
+        Teardown a runtime for sequential execution.
+        """
+        rt.teardown()
 
 
 
 class SimpleRuntime(object):
-    def __init__(self, processors, envs):
-        assert len(processors) == len(envs)
+    def __init__(self, processors, params, result):
         self.processors = processors
-        self.envs = envs
+        self.envs = self._setup_envs(processors, params, result) 
         self.amount_procs = len(processors)
         # Caches to store values in the pipe between processors.
         self.res_map, self.amount_res = _result_mapping(processors) 
@@ -105,13 +122,74 @@ class SimpleRuntime(object):
     def has_enough_results(self):
         return self.cur_amount_res == self.amount_res
 
+    def teardown(self):
+        for p, e in zip(self.processors, self.envs):
+            p.teardown(e)
+        
+
+    @staticmethod
+    def _setup_envs(processors, params, result):
+        # It could be the case, that there are multiple processors
+        # where one processors requires a tuple type and the other
+        # processors expect unit. The tuple then needs special
+        # treatment in get_initial_env as it is not wrapped enough. 
+        # to make this logic work. 
+        t = SimpleRuntime._should_treat_params_in_setup_special(processors)
+        special_setup_param_treatment = t 
+
+        envs = []
+
+        def _result(i, val):
+            pass
+
+        # Counter on the position of the next param to consume
+        # for the initalisation of the processors.
+        i = 0
+        for p in processors:
+            tinit = p.type_init()
+            result = lambda x : _result(i,x)
+            if tinit is unit:
+                envs.append(p.setup((), result))
+                continue
+
+            if isinstance(tinit, ProductType):
+                # See comment in constructor
+                if special_setup_param_treatment:
+                    assert tinit.contains(params)
+                    envs.append(p.setup(params, result))
+                    continue
+
+                assert tinit.contains(params[i])
+                envs.append(p.setup(params[i], result))
+            else:
+                assert tinit.contains(params[i])
+                envs.append(p.setup((params[i],), result))
+            i += 1
+        
+        return envs
+
+    @staticmethod
+    def _should_treat_params_in_setup_special(processors):
+        cnt_unit = 0
+        cnt_product = 0
+        for p in processors:
+            assert isinstance(p, StreamProcessor)
+            tinit = p.type_init()
+            if isinstance(tinit, ProductType):
+                cnt_product += 1
+            elif tinit == unit:
+                cnt_unit += 1
+        if cnt_product == 1 and cnt_product + cnt_unit == len(processors):
+            return True
+        return False
+
 
 class SimpleSequentialRuntime(SimpleRuntime):
     """
     The runtime to be used by SequentialStreamProcessors.
     """
-    def __init__(self, processors, envs):
-        super(SimpleSequentialRuntime, self).__init__(processors, envs)
+    def __init__(self, processors, params, result):
+        super(SimpleSequentialRuntime, self).__init__(processors, params, result)
 
         # Caches to store values in the pipe between processors.
         self.caches = [list() for _ in range(0, self.amount_procs - 1)]
@@ -211,8 +289,8 @@ class SimpleParallelRuntime(SimpleRuntime):
     """
     The runtime to be used by ParallelStreamProcessors.
     """
-    def __init__(self, processors, envs):
-        super(SimpleParallelRuntime, self).__init__(processors, envs)
+    def __init__(self, processors, params, result):
+        super(SimpleParallelRuntime, self).__init__(processors, params, result)
         self.in_map, self.amount_in = _in_mapping(processors)
         self.out_map, self.amount_out = _out_mapping(processors)
         self.caches_in = [list() for _ in range(0, self.amount_in)]
@@ -326,8 +404,11 @@ class ParallelStream(Stream):
 
 
 class SimpleSubprocessRuntime(object):
-    def __init__(self, process):
+    def __init__(self, process, params, result):
         self.process = process
+
+    def teardown(self):
+        pass
 
     def step(self, stream):
         init = stream.await()
