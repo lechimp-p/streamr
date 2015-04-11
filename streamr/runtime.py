@@ -121,9 +121,9 @@ class SimpleSequentialRuntime(SimpleRuntime):
         # on the last processor in the pipe.
         last_proc_index = self.amount_procs - 1 
         state = self.processors[last_proc_index].step( 
-                       self.envs[last_proc_index]
-                     , SequentialStream(self, last_proc_index, stream)
-                     )       
+                        self.envs[last_proc_index],
+                        SequentialStream(self, last_proc_index, stream))
+
         assert state in (Stop, MayResume, Resume)
 
         # This for sure means we need to resume.
@@ -171,10 +171,10 @@ class SequentialStream(Stream):
             # So we need to invoke the processor to the left
             # to get a new value.
             state = self.runtime.processors[left_index].step(
-                              self.runtime.envs[left_index]
-                            , SequentialStream(self.runtime, left_index, 
-                                               self.stream)
-                            )
+                            self.runtime.envs[left_index],
+                            SequentialStream(self.runtime, left_index, 
+                                             self.stream))
+
             assert state in (Stop, MayResume, Resume)
 
             if state == Stop:
@@ -299,7 +299,7 @@ class ParallelStream(Stream):
             if self.runtime.amount_in == 1:
                 self.runtime.caches_in[0].append(val)        
                 continue
-            for j, p in enumerate(self.runtime.processors):
+            for j in range(len(self.runtime.processors)):
                 _j = self.runtime.in_map[j]
                 if _j is None:
                     continue

@@ -362,9 +362,7 @@ def maps(a_pipe):
         raise TypeError("Expected pipe as argument.")
 
     tinit = a_pipe.type_init()
-    tresult = a_pipe.type_result()
     tin = a_pipe.type_in()
-    tout = a_pipe.type_out()
  
     # Subprocess takes inits from upstream and sends
     # results downstream.
