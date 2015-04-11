@@ -238,6 +238,8 @@ class SimpleParallelRuntime(SimpleRuntime):
             elif state == Stop:
                 self.exhausted[i] = True
 
+        # TODO: This could be done as soon as there are enough
+        # values like we do with result.
         self._send_downstream(stream)
 
         if exhausted:
