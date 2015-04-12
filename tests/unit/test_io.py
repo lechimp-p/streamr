@@ -3,7 +3,7 @@
 import pytest
 
 from streamr.io import read_file, to_json
-from streamr.simple import from_list, to_list 
+from streamr.base import from_list, to_list 
 from test_core import _TestPipe
 import os
 import json

@@ -128,7 +128,7 @@ class TestCombinationBase(object):
         assert val[0] == (1,2)
 
     def test_pipeWithInitAndResult(self):
-        from streamr.simple import from_list, to_list
+        from streamr.base import from_list, to_list
 
         class TimesX(StreamProcessor):
             def __init__(self):

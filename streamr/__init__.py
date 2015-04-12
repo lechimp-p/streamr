@@ -1,8 +1,8 @@
 # Copyright (C) 2015 Richard Klees <richard.klees@rwth-aachen.de>
 
 # Common exports
-from .simple import ( Producer, Consumer, Pipe, const, from_list, to_list, pipe
-                    , transformation, pass_if, tee, nop, maps)
+from .base import ( Producer, Consumer, Pipe, const, from_list, to_list, pipe
+                  , transformation, pass_if, tee, nop, maps)
 from .core import Resume, MayResume, Stop, StreamProcessor, subprocess
 
 # Engine initialisations
