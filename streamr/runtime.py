@@ -87,7 +87,6 @@ class SimpleRuntimeEngine(object):
         rt.teardown()
 
 
-
 class SimpleRuntime(object):
     def __init__(self, processors, params, result):
         self.res_map, self.amount_res = _result_mapping(processors) 
