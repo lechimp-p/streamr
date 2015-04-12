@@ -26,7 +26,7 @@ it looks like this:
                   |               |
                   |    stream     |
       upstream ==>|               |==> downstream
-                  |  processors   |
+                  |   processor   |
                   |               |
                   -----------------
                           |
@@ -57,8 +57,8 @@ takes strings from upstream and sends lists of ints downstream. As result it
 produces another int. A processor of this type could e.g. search with the regex
 in the string from upstream and return every position the regex matches. The
 result could be the total amount of matches during the lifetime of the processor.
-A textual representation for that processor would be *RegexObject -> int % str 
--> [int]*.
+A textual representation for that processor would be `RegexObject -> int % str 
+-> [int]`.
 
 ## Combinators
 
@@ -97,9 +97,9 @@ and result is treated analogous to sequential combination:
 
 ## Subprocesses
 
-A processor of the form `a -> b % () -> ()` (more on that later) could be turned
-into a stream processor with no init and result with subprocess:
-`subprocess(a -> b % () -> ()) = (() -> () % a -> b)`.
+A processor of the form `a -> b % () -> ()` could be turned into a stream processor 
+with no init and result with subprocess:`subprocess(a -> b % () -> ()) = (() -> () 
+% a -> b)`.
 
 ```
                  a             ()
