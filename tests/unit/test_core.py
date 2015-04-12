@@ -192,7 +192,7 @@ class TestCompositionBase(object):
         assert (r3 >> r4).run() == (13.0, {})
         assert (r1 * (r3 >> r4)).run() == (10, (13.0, {}))
         assert ((r3 >> r4) * r1).run() == ((13.0, {}), 10)
-        assert (r1 * r2 * (r3 >> r4)).run() == ((10, "hello"), (13.0, {}))
+        assert (r1 * r2 * (r3 >> r4)).run() == (10, "hello", (13.0, {}))
         assert (r1 * r3 >> r4).run() == ((10, 13.0), {})
         assert (r3 >> r2 * r4).run() == (13.0, ("hello", {}))
         assert (r1 * r3 >> r2 * r4).run() == ((10, 13.0), ("hello",{}))
@@ -231,10 +231,9 @@ class TestCompositionTyped(object):
         pi = pi_any >> pi_any2
         assert pi.type_out() == pi.type_in()
 
-    def test_crashDueNoProductIso(self, pr, co):
-        with pytest.raises(TypeError) as excinfo:
-            sp = ((pr * pr) * pr) >> (co * (co * co))
-        assert "compose" in str(excinfo.value)
+    def test_noNestedParallelComposition(self, pr, co):
+        sp = ((pr * pr) * pr) >> (co * (co * co))
+        assert sp.run()
         
 
 class TestStreamProcessResults(object):
@@ -349,7 +348,7 @@ class TestStacking(object):
 
     def test_result6(self, pr, pi, co):
         sp = pr >> (pi * pr) >> (pi * pi * pr) >> (co * co * co)
-        assert sp.run() == (([40]*10, [20]*10), [10]*10)
+        assert sp.run() == ([40]*10, [20]*10, [10]*10)
 
     def test_result7(self, pr, pi, co):
         sp = (pr * pr * pr) >> (co * pi * pi) >> (co * pi) >> co
@@ -357,7 +356,7 @@ class TestStacking(object):
 
     def test_result8(self, pr, pi, co):
         sp = pr >> (pr * pi) >> (pr * pi * pi) >> (co * co * co)
-        assert sp.run() == (([10]*10, [20]*10), [40]*10)
+        assert sp.run() == ([10]*10, [20]*10, [40]*10)
 
     def test_result9(self, pr, pi, co):
         sp = pr >> (pr * pi * pr) >> (pi * co * pi) >> (co * co)

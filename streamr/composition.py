@@ -26,7 +26,11 @@ class SimpleCompositionEngine(object):
         return SequentialStreamProcessor(procs)
 
     def compose_parallel(self, top, bottom):
-        return ParallelStreamProcessor([top, bottom])
+        is_pp = lambda x: isinstance(x, ParallelStreamProcessor)
+        procs = ((top.processors if is_pp(top) else [top]) +
+                 (bottom.processors if is_pp(bottom) else [bottom])) 
+
+        return ParallelStreamProcessor(procs)
 
     @staticmethod
     def _composable(l, r):
