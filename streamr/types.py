@@ -512,7 +512,14 @@ class TypeEngine(object):
         return v
 
     @staticmethod
-    def _unifies(subs, l,r):
+    def _unifies(subs, l, r):
+        """
+        Get a type that complies with l and r, probably creating some
+        substitutions when one of the types is a variable. 
+        """
+        l = TypeEngine._get_substitution(subs, l)
+        r = TypeEngine._get_substitution(subs, r)
+
         if l == r:
             return l
 
@@ -541,6 +548,18 @@ class TypeEngine(object):
             return ProductType.get(*list(map(m,z)))
 
         TypeEngine._cant_unify(l,r)
+
+    @staticmethod
+    def _get_substitution(subs, v):
+        """
+        Get the substitution for v from subs.
+
+        If there is no substitution, return v. Otherwise follows the chain of
+        substitutions till its end.
+        """
+        if v in subs:
+            return TypeEngine._get_substitution(subs, subs[v])
+        return v
 
     @staticmethod
     def _do_substitutions(subs, t):
