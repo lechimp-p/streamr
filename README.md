@@ -97,7 +97,17 @@ and result is treated analogous to sequential combination:
 
 ## Some Building Blocks
 
-### Producing and Consuming
+### Producers and Consumers
+
+* `from_list([1,2,3])` takes no values from upstream and sends the list it
+  got downstream one after another (it is of type `() -> () % () -> int`). 
+  `from_list` could also be used like from_list(item_type = str)`, which
+  expects to get a list [str] as init param: `[a] -> () % () -> a`. 
+* `const("foo")` constantly sends "foo" downstream. Like `from_list` it could
+  also be used in a flavour where the value is retrieved from init:
+  `const(value_type = "str")` is of type `a -> () % () -> a`. In both flavours
+  it supports an `amount`-parameter to send a maximum amount of values 
+  downstream.
 
 ### Decorators
 
