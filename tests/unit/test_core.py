@@ -168,7 +168,7 @@ class TestCompositionBase(object):
                 super(ResultsIn, self).__init__((), type_result, type_in, type_out)
             def setup(self, params, result):
                 if self.type_result() != ():
-                    stream.result(self.val)
+                    result(self.val)
                 return [0]
             def step(self, env, stream):
                 if env[0] < 2:

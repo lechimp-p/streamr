@@ -90,21 +90,22 @@ class SimpleRuntimeEngine(object):
 
 class SimpleRuntime(object):
     def __init__(self, processors, params, result):
+        self.res_map, self.amount_res = _result_mapping(processors) 
+        self.results = [_NoRes] * self.amount_res
+        self.cur_amount_res = 0
+
         self.processors = processors
         self.envs = self._setup_envs(processors, params, result) 
         self.amount_procs = len(processors)
-        # Caches to store values in the pipe between processors.
-        self.res_map, self.amount_res = _result_mapping(processors) 
-        self.results = [_NoRes] * self.amount_res
+
         # Tracks whether a processor is exhausted
         self.exhausted = [False] * self.amount_procs
-        self.cur_amount_res = 0
 
     def write_result(self, index, result):
         i = self.res_map[index]
         if i is None:
             raise RuntimeError("Process %d tried to write result but "
-                               "has no result type." % i)    
+                               "has no result type." % index)
         if self.results[i] == _NoRes:
             self.cur_amount_res += 1
         if result == _NoRes:
@@ -127,8 +128,7 @@ class SimpleRuntime(object):
             p.teardown(e)
         
 
-    @staticmethod
-    def _setup_envs(processors, params, result):
+    def _setup_envs(self, processors, params, result):
         # It could be the case, that there are multiple processors
         # where one processors requires a tuple type and the other
         # processors expect unit. The tuple then needs special
@@ -139,31 +139,33 @@ class SimpleRuntime(object):
 
         envs = []
 
-        def _result(i, val):
-            pass
-
         # Counter on the position of the next param to consume
         # for the initalisation of the processors.
         i = 0
-        for p in processors:
+        for j,p in enumerate(processors):
             tinit = p.type_init()
-            result = lambda x : _result(i,x)
+
+            def _result(v):
+                self.write_result(j,v)
+                if self.has_enough_results():
+                    result(*self.normalized_result())
+
             if tinit is unit:
-                envs.append(p.setup((), result))
+                envs.append(p.setup((), _result))
                 continue
 
             if isinstance(tinit, ProductType):
                 # See comment in constructor
                 if special_setup_param_treatment:
                     assert tinit.contains(params)
-                    envs.append(p.setup(params, result))
+                    envs.append(p.setup(params, _result))
                     continue
 
                 assert tinit.contains(params[i])
-                envs.append(p.setup(params[i], result))
+                envs.append(p.setup(params[i], _result))
             else:
                 assert tinit.contains(params[i])
-                envs.append(p.setup((params[i],), result))
+                envs.append(p.setup((params[i],), _result))
             i += 1
         
         return envs
@@ -327,7 +329,7 @@ class SimpleParallelRuntime(SimpleRuntime):
         if exhausted and resume:
             raise RuntimeError("One processor wants to resume while other "
                                "wants to stop.")
-        if resume or not self.has_enough_results():
+        if resume or (self.amount_res > 0 and not self.has_enough_results()):
             return Resume 
         if exhausted:
             if self.amount_res > 0 and not self.has_enough_results():

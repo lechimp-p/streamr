@@ -265,7 +265,7 @@ class TestListConsumer(_TestConsumer):
     @pytest.fixture
     def result(self, style, max_amount):
         if style == "result":
-            return [10] * (max_amount-1)
+            return [10] * max_amount
         if style == "append":
             return self._NoValue 
 

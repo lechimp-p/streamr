@@ -218,9 +218,10 @@ class ListConsumer(Consumer):
     def setup(self, params, result):
         super(ListConsumer, self).setup(params, result)
         if self.append_to is None:
+            assert self.type_result() != ()
             res = []
             result(res)
-            return [res]
+            return res
         return None 
 
     def consume(self, env, await, result):
