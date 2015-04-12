@@ -30,7 +30,7 @@ Stream processes are consumer driven, that is, a consumer pulls data from
 upstream until he has enough data or there is no more data in the upstream.
 """
 
-from .types import Type, ArrowType, ProductType, sequence, unit
+from .types import Type, ArrowType, ProductType, sequence
 
 ###############################################################################
 #
