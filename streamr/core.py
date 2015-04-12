@@ -20,8 +20,6 @@ Elements of a stream can be combined vertically by using the shift operators
 It should be possible to process the same pipeline multiple times and even in
 parallel, without the different process interfering with each other.
 
-Producers use generators to produce their values.
-
 Consumers, Producers and Pipes can use an environment to e.g. hold resources. 
 Those resources are guaranteed being teared down by passing them to teardown 
 method after a stream process has run.
