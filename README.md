@@ -9,7 +9,7 @@ streamr lets you express your data processing as a pipeline of stream processors
 With streamr you can program the flow of your data through different parts of
 your overall process rather than telling the interpreter when to shuffle which
 data where. streamr lets you compose complex data processing pipelines from 
-simple and reusable parts. 
+simple and reusable components. 
 
 ## Stream Processors
 
