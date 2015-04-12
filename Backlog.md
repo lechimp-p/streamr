@@ -6,6 +6,7 @@
 * implement producers and consumers for files 
 * implement a combinator that applies a -> b to the n-th entry in a nested
   product.
+* refactor tests, they seem messy
 
 # I could ...
 
@@ -14,7 +15,5 @@
     * use literals like "x" for type vars
 * implement sum types
 * redo the TypeEngine. It is quite messy and somehow ad hoc.
-* implement a way to vertically combine stream parts.
-* create test for the environment on stream parts.
 * implement recursive types to implement stuff like a json dict
 * implement a stream type
