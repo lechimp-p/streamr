@@ -50,10 +50,10 @@ class StreamProcessor(object):
     guaranteed that the environment is passed to the shutdown method after the
     processing.
 
-    Stream processors can be composed sequentially, that is, the downstream of the
+    Stream processors can be combined sequentially, that is, the downstream of the
     first processor is fed as upstream to the second processor.
     
-    Stream processor can also be composed in parallel, which results in a new
+    Stream processor can also be combined in parallel, which results in a new
     stream processor that uses the products of the types from its components as
     up- and downstream.
     """
@@ -120,12 +120,12 @@ class StreamProcessor(object):
         raise NotImplementedError("Implement StreamProcessor.step for"
                                   " %s!" % type(self))
         
-    # Engine used for composition
-    composition_engine = None
+    # Engine used for combination
+    combination_engine = None
 
     def __rshift__(self, other):
         """
-        Sequential composition.
+        Sequential combination.
 
         For two stream processors with types (init1, result1, a, b) and
         (init2, result2, b, c), produces a new stream processor with the types
@@ -135,20 +135,20 @@ class StreamProcessor(object):
         (a >> b) >> c =~ a >> (b >> c) should hold, where =~ means extensional
         equality.
         """
-        return StreamProcessor.composition_engine.compose_sequential(self, other)    
+        return StreamProcessor.combination_engine.combine_sequential(self, other)    
 
     def __lshift__(self, other):
-        return StreamProcessor.composition_engine.compose_sequential(other, self)   
+        return StreamProcessor.combination_engine.combine_sequential(other, self)   
 
     def __mul__(self, other):
         """
-        Parallel composition.
+        Parallel combination.
 
         For two stream processors with types (init1, result1, a1, b1) and
         (init2, result2, a2, b2), produces a new stream processor with the types
         (init1 * init2, result1 * result2, a1 * a2, b1 * b2).
         """
-        return StreamProcessor.composition_engine.compose_parallel(self, other)   
+        return StreamProcessor.combination_engine.combine_parallel(self, other)   
 
 
     # Some judgements about the stream processor
@@ -247,13 +247,13 @@ class Exhausted(BaseException):
 
 ###############################################################################
 #
-# Basic classes for composed stream processors.
+# Basic classes for combined stream processors.
 #
 ###############################################################################
 
-class ComposedStreamProcessor(StreamProcessor):
+class CombinedStreamProcessor(StreamProcessor):
     """
-    Mixin for all composed stream processors.
+    Mixin for all combined stream processors.
 
     Handles initialisation and shutdown of the sub processors.
     """
@@ -263,15 +263,15 @@ class ComposedStreamProcessor(StreamProcessor):
         tresult = (Type.get(*[p.type_result() for p in processors])
                        .substitute_vars(substitutions))
 
-        super(ComposedStreamProcessor, self).__init__(tinit, tresult, type_in, type_out)
+        super(CombinedStreamProcessor, self).__init__(tinit, tresult, type_in, type_out)
 
         self.processors = list(processors)
  
     def setup(self, params, result):
-        super(ComposedStreamProcessor, self).setup(params, result)
+        super(CombinedStreamProcessor, self).setup(params, result)
 
 
-class SequentialStreamProcessor(ComposedStreamProcessor):
+class SequentialStreamProcessor(CombinedStreamProcessor):
     """
     A processor that processes it subprocessors sequentially by feeding the
     output of a previous processor to the input of the next processor.
@@ -293,7 +293,7 @@ class SequentialStreamProcessor(ComposedStreamProcessor):
         return rt.step(stream)
 
 
-class ParallelStreamProcessor(ComposedStreamProcessor):
+class ParallelStreamProcessor(CombinedStreamProcessor):
     """
     A processor that processes it subprocessors in parallel.
     """
