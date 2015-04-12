@@ -345,7 +345,7 @@ class TestStacking(object):
 
     def test_result5(self, pr, pi, co):
         sp = (pr * pr * pr) >> (pi * pi * co) >> (pi * co) >> co
-        assert sp.run() == (([10]*10, [20]*10), [40]*10)
+        assert sp.run() == ([10]*10, [20]*10, [40]*10)
 
     def test_result6(self, pr, pi, co):
         sp = pr >> (pi * pr) >> (pi * pi * pr) >> (co * co * co)
@@ -353,7 +353,7 @@ class TestStacking(object):
 
     def test_result7(self, pr, pi, co):
         sp = (pr * pr * pr) >> (co * pi * pi) >> (co * pi) >> co
-        assert sp.run() == (([10]*10, [20]*10), [40]*10)
+        assert sp.run() == ([10]*10, [20]*10, [40]*10)
 
     def test_result8(self, pr, pi, co):
         sp = pr >> (pr * pi) >> (pr * pi * pi) >> (co * co * co)

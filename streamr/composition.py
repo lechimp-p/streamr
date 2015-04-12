@@ -19,7 +19,11 @@ class SimpleCompositionEngine(object):
         if not_composable:
             raise TypeError("Can't compose %s and %s." % (left, right))
 
-        return SequentialStreamProcessor([left, right])
+        is_sp = lambda x: isinstance(x, SequentialStreamProcessor)
+        procs = ((left.processors if is_sp(left) else [left]) +
+                 (right.processors if is_sp(right) else [right])) 
+
+        return SequentialStreamProcessor(procs)
 
     def compose_parallel(self, top, bottom):
         return ParallelStreamProcessor([top, bottom])
