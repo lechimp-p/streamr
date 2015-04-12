@@ -331,6 +331,9 @@ def pass_if(type_io, _lambda = None):
 
 
 def tee():
+    """
+    Distributes an input over to a tuple: a -> (a,a).
+    """
     _any = Type.get()
     @transformation(_any, (_any, _any))
     def tee(v):
@@ -339,6 +342,9 @@ def tee():
 
 
 def nop():
+    """
+    Does nothing with the data: a -> a
+    """
     _any = Type.get()
     @transformation(_any, _any)
     def nop(v):
@@ -349,7 +355,7 @@ def nop():
 def maps(a_pipe):
     """
     Maps a pipe over lists from upstream and sends the resulting list
-    downstream.
+    downstream: maps(a -> b) is of type [a] -> [b].
 
     The pipe is initialized once per list and produces one result per list,
     which are collected in a result list.
