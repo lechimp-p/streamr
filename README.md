@@ -95,7 +95,28 @@ and result is treated analogous to sequential combination:
     r             r'             (r,r')
 ```
 
-## Subprocesses
+## Some Building Blocks
+
+### Producing and Consuming
+
+### Decorators
+
+### Miscellaneous  
+
+## Running Processes
+
+A stream process is runnable if it has the form `a -> b % () -> ()`. The ()-type
+aka unit denotes, that nothing interesting is out- or inputted, thus processors
+of the above form take initial params and produce a result but do not send data 
+downstream or take data from upstream. We can run such a processor by providing
+it with its desired params and get back a result:
+
+```python
+p = from_list(item_type = int) >> to_list()
+assert p.run([1,2,3]) == [1,2,3]
+```
+
+### Subprocesses
 
 A processor of the form `a -> b % () -> ()` could be turned into a stream processor 
 with no init and result with subprocess:`subprocess(a -> b % () -> ()) = (() -> () 
@@ -108,3 +129,7 @@ with no init and result with subprocess:`subprocess(a -> b % () -> ()) = (() -> 
                  v              v
                  b             ()
 ```
+
+This can be used to embed runnable stream processors into other higher level pipelines.
+
+## Implementing Processors
