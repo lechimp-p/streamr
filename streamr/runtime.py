@@ -138,17 +138,19 @@ class SimpleRuntime(object):
 
         envs = []
 
+        def __result(j,v):
+            self.write_result(j,v)
+            if self.has_enough_results():
+                result(*self.normalized_result())
+
+
+
         # Counter on the position of the next param to consume
         # for the initalisation of the processors.
         i = 0
         for j,p in enumerate(processors):
             tinit = p.type_init()
-
-            def _result(v):
-                self.write_result(j,v)
-                if self.has_enough_results():
-                    result(*self.normalized_result())
-
+            _result = lambda v: __result(j, v)
             if tinit is unit:
                 envs.append(p.setup((), _result))
                 continue
@@ -405,7 +407,7 @@ class ParallelStream(Stream):
 
 
 class SimpleSubprocessRuntime(object):
-    def __init__(self, process, params, result):
+    def __init__(self, process, _, __):
         self.process = process
 
     def teardown(self):
