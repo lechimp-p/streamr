@@ -88,11 +88,11 @@ and result is treated analogous to sequential combination:
 `(i -> r % a -> b) * (i' -> r' % c -> d) = ((i,i') -> (r,r') % (a,b) -> (c,d)`.
 
 ```
-    i             i'            (i,i')
-    v             v               v
- a =O=> b  *  c =O=> d  =  (a,b) =O=> (c,d) 
-    v             v               v
-    r             r'            (r,r')
+    i             i'             (i,i')
+    v             v                v
+ a =O=> b  *  c  =O=> d  =  (a,b) =O=> (c,d) 
+    v             v                v
+    r             r'             (r,r')
 ```
 
 ## Subprocesses
