@@ -59,59 +59,59 @@ def pi_any2():
 def all_sps(pr, co, pi):
     return [pr, co, pi]
 
-class TestCompositionBase(object):
+class TestCombinationBase(object):
     """
-    Test whether composition of different stream parts lead to the
+    Test whether combinations of different stream parts lead to the
     expected results.
 
     Objects from the classes need to respect the follwing rules, 
     where abbreaviations for the names are used.
     """
     # any >> Pr = error
-    def test_AnyCompPr(self, all_sps, pr):
+    def test_AnyCombPr(self, all_sps, pr):
         for sp in all_sps:
             with pytest.raises(TypeError) as excinfo:
                 sp >> pr
-            assert "compose" in str(excinfo.value)
+            assert "combine" in str(excinfo.value)
 
     # Co >> any = error
-    def test_CoCompAny(self, all_sps, co):
+    def test_CoCombAny(self, all_sps, co):
         for sp in all_sps:
             with pytest.raises(TypeError) as excinfo:
                 co >> sp
-            assert "compose" in str(excinfo.value)
+            assert "combine" in str(excinfo.value)
 
     # Pi >> Pi = Pi
-    def test_PiCompPi(self, pi):
+    def test_PiCombPi(self, pi):
         assert (pi >> pi).is_pipe()
 
     # Pr >> Pi = Pr
-    def test_PrCompPi(self, pr, pi):
+    def test_PrCombPi(self, pr, pi):
         assert (pr >> pi).is_producer()
 
     # Pi >> Co = Co
-    def test_PiCompCo(self, pi, co):
+    def test_PiCombCo(self, pi, co):
         assert (pi >> co).is_consumer()
 
     # Pr >> Co = SP
-    def test_PrCompCo(self, pr, co):
+    def test_PrCombCo(self, pr, co):
         assert (pr >> co).is_runnable()
 
     # SP >> any = error
-    def test_SPCompAny(self, all_sps, pr, co):
+    def test_SPCombAny(self, all_sps, pr, co):
         spt = pr >> co
         for sp in all_sps:
             with pytest.raises(TypeError)as excinfo:
                 spt >> sp
-            assert "compose" in str(excinfo.value)
+            assert "combine" in str(excinfo.value)
 
     # any >> SP = error
-    def test_SPCompAny(self, all_sps, pr, co):
+    def test_SPCombAny(self, all_sps, pr, co):
         spt = pr >> co
         for sp in all_sps:
             with pytest.raises(TypeError) as excinfo:
                 sp >> spt
-            assert "compose" in str(excinfo.value)
+            assert "combine" in str(excinfo.value)
 
     def test_tupleInitType(self):
         val = [None]
@@ -209,41 +209,41 @@ class TestCompositionBase(object):
         assert ((r9 * r9) >> (r10 * r8) >> r11).run() == ("hello", "world")
 
 
-class TestCompositionTyped(object):
-    def test_PrCompCoAny(self, pr, pr_str, co_any):
+class TestCombinationTyped(object):
+    def test_PrCombCoAny(self, pr, pr_str, co_any):
         sp1 = pr >> co_any
         assert sp1.run() == [10]*10
 
         sp2 = pr_str >> co_any
         assert sp2.run() == ["Hello World!"]*10
 
-    def test_PrStrCompCoInt(self, pr_str, co):
+    def test_PrStrCombCoInt(self, pr_str, co):
         with pytest.raises(TypeError) as excinfo:
             pr_str >> co
-        assert "compose" in str(excinfo.value)
+        assert "combine" in str(excinfo.value)
 
-    def test_PrStrCompPiAny(self, pr_str, pi_any):
+    def test_PrStrCombPiAny(self, pr_str, pi_any):
         pr = pr_str >> pi_any
         assert pr.type_out() == Type.get(str)
 
-    def test_PiAnyCompPiAny(self, pi_any, pi_any2):
+    def test_PiAnyCombPiAny(self, pi_any, pi_any2):
         assert pi_any.type_out() != pi_any2.type_in()
         pi = pi_any >> pi_any2
         assert pi.type_out() == pi.type_in()
 
-    def test_noNestedParallelComposition(self, pr, co):
+    def test_noNestedParallelCombination(self, pr, co):
         sp = ((pr * pr) * pr) >> (co * (co * co))
         assert sp.run()
         
 
 class TestStreamProcessResults(object):
-    def test_PrCompCo(self, pr, co):
+    def test_PrCombCo(self, pr, co):
         sp = pr >> co
         assert sp.run() == [10]*10
-    def test_PrCompPiCompCo(self, pr, pi, co):
+    def test_PrCombPiCombCo(self, pr, pi, co):
         sp = pr >> pi >> co
         assert sp.run() == [20]*10
-    def test_PrCompPiCompPiCompCo(self, pr, pi, co):
+    def test_PrCombPiCombPiCombCo(self, pr, pi, co):
         sp = pr >> pi >> pi >> co
         assert sp.run() == [40]*10
 
@@ -550,12 +550,6 @@ class _TestPipe(_TestStreamProcessor):
 
         assert send_was_called[0]
 
-
-###############################################################################
-#
-# Test of products of composition.
-#
-###############################################################################
 
 class TestAppendPipe(_TestProducer):
     @pytest.fixture

@@ -6,8 +6,8 @@ from .simple import ( Producer, Consumer, Pipe, const, from_list, to_list, pipe
 from .core import Resume, MayResume, Stop, StreamProcessor, subprocess
 
 # Engine initialisations
-from streamr.composition import SimpleCompositionEngine
-StreamProcessor.composition_engine = SimpleCompositionEngine()
+from streamr.combination import SimpleCombinationEngine
+StreamProcessor.combination_engine = SimpleCombinationEngine()
 
 from streamr.runtime import SimpleRuntimeEngine 
 StreamProcessor.runtime_engine = SimpleRuntimeEngine()
