@@ -62,7 +62,7 @@ A textual representation for that processor would be `RegexObject -> int % str
 
 ## Combinators
 
-Stream processor can be combined to new stream processors by twobasic 
+Stream processor can be combined to new stream processors by two basic 
 combinators. The combinations can be treated uniformly with the basic processors.
 
 ### Sequential Combination
@@ -102,6 +102,14 @@ and result is treated analogous to sequential combination:
 ### Decorators
 
 ### Miscellaneous  
+
+* `pass_if(type_io, predicate)` filters an upstream of type_io in such a way, 
+  that only values that comply to predicate will be passed downstream. Could
+  also be used as a decoraror `@passif(type_io)`.
+* `tee()` turns one value in to values like `a -> (a,a)` distributing the same
+  value to two downstream processors.
+* `nop()` does nothing at all with values from upstream before passing them 
+   downstream. It comes in handy when composing complex stream processors.
 
 ## Running Processes
 
