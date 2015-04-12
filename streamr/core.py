@@ -317,6 +317,10 @@ def subprocess(process):
     return Subprocess(process) 
 
 class Subprocess(StreamProcessor):
+    """
+    Turn a runnable processor into a pipe by executing it once for every
+    value from upstream, using it as init, and sending the result downstream.
+    """
     def __init__(self, process):
         ok = (isinstance(process, StreamProcessor) and
               process.type_in() == () and
