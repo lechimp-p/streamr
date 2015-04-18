@@ -360,3 +360,38 @@ searchWithRegex = SearchWithRegex()
 sp = from_list(["1a33efg", "1", "a"]) >> searchWithRegex >> to_list()
 assert sp.run(re.compile("\d")) == (4, [3,1,0])
 ```
+
+### Contribution
+
+I would be very pleased to get your contributions to this library, either in 
+form of general of specific feedback, bug reports or pull requests. I would be 
+glad to put some of your stream processors in my library. I'm also interested
+in suggestions which direction this library should take (if it is at all 
+usefull).
+
+### Outlook
+
+At the moment this library is in kind of a proof of concepts stage. If someone
+consideres this library usefull, i could think of some interesting directions
+this could take:
+
+* I wanted the interface of the stream processors to be abstract enough to make
+  the runtime engines behind the processing switchable. The currently implemented
+  simple runtime uses a pull based approach and caches and processes all steps
+  sequentially. It should be easy to implement a thread based runtime as well.
+  With some more effort it should also be possible to implement a runtime that
+  uses multiple processes, potentially on different machines.
+* The expression of types is a bit clunky at the moment. With Python3 annotations
+  this could be much nicer. There are also some other things that could be
+  improved in the typing, e.g. type variables or introduction of sum types.
+* There are a lot of processors one could imagine. At the moment there are only
+  some very basic processors. That makes a lot open space for improvements...
+
+# Acknowledgments
+
+This library is heavily inspired by the (pipes library)[https://github.com/Gabriel439/Haskell-Pipes-Library]
+from Gabriel Gonzalez for Haskell. This most probably also is the reason for
+the use of types for the pipeline.
+
+A little discussion with (vortec)[https://github.com/vortec] inspired me to
+implement this library.
