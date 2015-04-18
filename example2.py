@@ -31,7 +31,9 @@ class Prints(Consumer):
         print(env[0] % val)
         return MayResume
 
-prints = Prints()
+# We bind a lambda here, as we need different prints for different
+# input types.
+prints = lambda: Prints()
 
-sp = from_list(range(0,10)) >> prints
+sp = from_list(range(0,10)) >> prints()
 assert sp.run("Got value: %s") == 10

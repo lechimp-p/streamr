@@ -278,12 +278,85 @@ class Prints(Consumer):
         print(env[0] % val)
         return MayResume
 
-prints = Prints()
+prints = lambda x: Prints()
 
-sp = from_list(range(0,10)) >> prints
+sp = from_list(range(0,10)) >> prints()
 assert sp.run("Got value: %s") == 10
 ```
 
 ### Pipes
 
+Pipes are stream processors that produce no result, take values from upstream
+and send values downstream: `i -> () % a -> b`.
+
+```python
+from streamr import Pipe, MayResume, from_list, to_list
+from streamr.types import Type
+
+class Echo(Pipe):
+    """
+    A pipe that echos values it retreives from upstream for a certain times,
+    given as init.
+    """
+    def __init__(self):
+        # We need to pass an init type, an upstream type and a downstream type
+        _any = Type.get()
+        super(Echo, self).__init__(int, _any, _any)
+
+    def setup(self, params, result):
+        return params[0]
+
+    def transform(self, env, await, send):
+        val = await()
+        for _ in range(0, env):
+            send(val)
+        return MayResume
+
+echo = lambda: Echo()
+
+sp = from_list([1,2]) >> echo() >> to_list() 
+assert sp.run(2) == [1,1,2,2]
+``` 
+
 ### General Stream Processors
+
+A general stream processor of type `i -> r % a -> b` can be implemented via the
+`StreamProcessor` base class.
+
+```python
+from streamr import StreamProcessor, MayResume, from_list, to_list
+
+import re
+
+class SearchWithRegex(StreamProcessor):
+    """
+    Give a regular expression as init value. Take strings from upstream
+    and send the number the regex matched on the string downstream. Provide
+    the total amount of matches a result.
+
+    Regex -> int % string -> int
+    
+    This is the processor from the typed example above.
+    """
+    def __init__(self):
+        re_type = type(re.compile(".")) 
+        super(SearchWithRegex, self).__init__(re_type, int, str, int)
+
+    def setup(self, params, result):
+        result(0)
+        return (params[0], [0])
+
+    def step(self, env, stream):
+        # Stream is an object that provides the methods await, send and result. 
+        string = stream.await()
+        amount = len(env[0].findall(string))
+        env[1][0] += amount
+        stream.result(env[1][0])
+        stream.send(amount)
+        return MayResume
+
+searchWithRegex = SearchWithRegex()
+
+sp = from_list(["1a33efg", "1", "a"]) >> searchWithRegex >> to_list()
+assert sp.run(re.compile("\d")) == (4, [3,1,0])
+```
