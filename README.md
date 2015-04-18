@@ -101,7 +101,7 @@ and result is treated analogous to sequential combination:
 
 * `from_list([1,2,3])` takes no values from upstream and sends the list it
   got downstream one after another (it is of type `() -> () % () -> int`). 
-  `from_list` could also be used like from_list(item_type = str)`, which
+  `from_list` could also be used like `from_list(item_type = str)`, which
   expects to get a list [str] as init param: `[a] -> () % () -> a`. 
 * `const("foo")` constantly sends "foo" downstream. Like `from_list` it could
   also be used in a flavour where the value is retrieved from init:
@@ -110,8 +110,8 @@ and result is treated analogous to sequential combination:
   downstream.
 * `to_list()` is a consumer that appends values from upstream to a list `() -> [a]
   % a -> ()`. As `to_list(my_list)` it appends to a given list `() -> () % a -> ()`.
-  In both flavours it supports the max_amount flag to specify how many values
-  the consumer should consume before it stops. 
+  In both flavours it supports the max_amount flag to specify what's the maximum 
+  amount of values the consumer should consume before it stops. 
 
 ### Decorators
 
@@ -127,7 +127,7 @@ and result is treated analogous to sequential combination:
 * `pass_if(type_io, predicate)` filters an upstream of type_io in such a way, 
   that only values that comply to predicate will be passed downstream. Could
   also be used as a decoraror `@passif(type_io)`.
-* `tee()` turns one value in to values like `a -> (a,a)` distributing the same
+* `tee()` turns one value in twwo values like `a -> (a,a)`, distributing the same
   value to two downstream processors.
 * `nop()` does nothing at all with values from upstream before passing them 
    downstream. It comes in handy when composing complex stream processors.
@@ -149,9 +149,8 @@ assert p.run([1,2,3]) == [1,2,3]
 
 ### Subprocesses
 
-A processor of the form `a -> b % () -> ()` could be turned into a stream processor 
-with no init and result with subprocess:`subprocess(a -> b % () -> ()) = (() -> () 
-% a -> b)`.
+`subprocess` turns a processor of the form `a -> b % () -> ()` into a stream processor 
+with no init and result:`subprocess(a -> b % () -> ()) = (() -> () % a -> b)`.
 
 ```
                  a             ()
@@ -167,7 +166,7 @@ This can be used to embed runnable stream processors into other higher level pip
 
 For the implementation of new processors, four base classes are provided, where
 three of those classes capture typical types of stream processors and the fourth
-base class gives access to the full stream processor abstractions.
+base class gives access to the full stream processor abstraction.
 
 ### Producers
 
