@@ -389,9 +389,9 @@ this could take:
 
 # Acknowledgments
 
-This library is heavily inspired by the (pipes library)[https://github.com/Gabriel439/Haskell-Pipes-Library]
+This library is heavily inspired by the [pipes library](https://github.com/Gabriel439/Haskell-Pipes-Library)
 from Gabriel Gonzalez for Haskell. This most probably also is the reason for
 the use of types for the pipeline.
 
-A little discussion with (vortec)[https://github.com/vortec] inspired me to
+A little discussion with [vortec](https://github.com/vortec) inspired me to
 implement this library.
